@@ -9,7 +9,7 @@ namespace Motor
     {
         public int Ouro { get; set; }
         public int PontosExperiencia { get; set; }
-        // public int Level { get; set; } somente coloque isso aqui, se não quiser que o jogador suba de level
+        // public int Level { get; set; } somente coloque esta linha aqui, se não quiser que o jogador suba de level
         public int Level
         {
             get { return ((PontosExperiencia / 100)+ 1); } // a cada 100 pontos de experiencia, o jogador sobe 1 level.
@@ -23,7 +23,7 @@ namespace Motor
         {
             Ouro = ouro;
             PontosExperiencia = pontosExperiencia;
-            // Level = level;  somente coloque isso aqui, se não quiser que o jogador suba de level
+            // Level = level;  somente coloque essa linha aqui, se não quiser que o jogador suba de level
             Inventario = new List<InventarioItem>();
             Quests = new List<JogadorQuest>();
              
@@ -111,7 +111,7 @@ namespace Motor
  
         public void RemovaItensDeQuestCompletada(Quest quest)
         {
-            foreach(QuestCompletadaItem qci in quest.QuestCompletadaItem) // pode dar erro de lógica aqui
+            foreach(QuestCompletadaItem qci in quest.QuestCompletadaItem) // verificar esse metodo novamente, pode dar erro de lógica aqui
             {
                 foreach (InventarioItem ii in Inventario)
                 {
@@ -138,21 +138,21 @@ namespace Motor
                 }
             }
  
-            //O jogador não possuia o item, ai adicione na quantidade de 1
+            // O jogador não possuia o item, então adicione ao inventário na quantidade de 1
             Inventario.Add(new InventarioItem(itemParaAdicionar, 1));
         }
 
         public void MarqueQuestCompletada(Quest quest)
         {
-            // Encontre quest na lista de quest do jogador
+            // Encontra quest na lista de quest do jogador
             foreach (JogadorQuest jq in Quests) // jq = jogador quest
             {
                 if (jq.Detalhes.ID == quest.ID)
                 {
-                    // Marque quest como completado
+                    // Marca quest como completado
                     jq.Completado = true;
 
-                    return; // Quest foi encontrada, e marcada como completa, então saia dessa função
+                    return; // Quest foi encontrada, e marcada como completa, então sai desta função
                 }
             }
         }
