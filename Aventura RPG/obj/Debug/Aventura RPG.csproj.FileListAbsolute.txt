@@ -1,0 +1,20 @@
+I:\C#\Aventura RPG\Backup\Aventura RPG\bin\Debug\Aventura RPG.exe
+I:\C#\Aventura RPG\Backup\Aventura RPG\bin\Debug\Aventura RPG.pdb
+I:\C#\Aventura RPG\Backup\Aventura RPG\bin\Debug\Motor.dll
+I:\C#\Aventura RPG\Backup\Aventura RPG\bin\Debug\Motor.pdb
+I:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\ResolveAssemblyReference.cache
+I:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura_RPG.AventuraRPG.resources
+I:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura_RPG.Properties.Resources.resources
+I:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura RPG.csproj.GenerateResource.Cache
+I:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura RPG.exe
+I:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura RPG.pdb
+D:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura RPG.exe
+D:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura RPG.pdb
+D:\C#\Aventura RPG\Backup\Aventura RPG\bin\Debug\Aventura RPG.exe
+D:\C#\Aventura RPG\Backup\Aventura RPG\bin\Debug\Aventura RPG.pdb
+D:\C#\Aventura RPG\Backup\Aventura RPG\bin\Debug\Motor.dll
+D:\C#\Aventura RPG\Backup\Aventura RPG\bin\Debug\Motor.pdb
+D:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\ResolveAssemblyReference.cache
+D:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura_RPG.AventuraRPG.resources
+D:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura_RPG.Properties.Resources.resources
+D:\C#\Aventura RPG\Backup\Aventura RPG\obj\Debug\Aventura RPG.csproj.GenerateResource.Cache
