@@ -1,6 +1,6 @@
 ﻿/*
  Este é um jogo de RPG simples desenvolvido por
- Lucas Barbosa e Luis Felipe (FATEC ITU - 2º SEMESTRE GTI)
+ Lucas Barbosa (FATEC ITU - 2º SEMESTRE GTI)
  O código está todo comentado, com explicações de como o código funciona.
  Esse é um projeto para a disciplina de Linguagem de Programação C# da
  Professora Angelina Melaré.
