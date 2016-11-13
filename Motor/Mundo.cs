@@ -7,19 +7,21 @@ namespace Motor
 {
    public static class Mundo
     {
-       //Isso é uma lista de variáveis estáticas. Funcionam de forma similar a propriedades em uma classe. 
-       //Aqui estou trazendo todos os objetos para o mundo e então vou ler eles no decorrer do programa.
+       /*Isso é uma lista de variáveis estáticas. Funcionam de forma similar a propriedades em uma classe. 
+         Aqui estou trazendo todos os objetos para o mundo e então vou ler eles no decorrer do programa.
+       */  
 
         public static readonly List<Item> Itens = new List<Item>();
         public static readonly List<Monstro> Monstros = new List<Monstro>();
         public static readonly List<Quest> Quests = new List<Quest>();
         public static readonly List<Local> Locais = new List<Local>();
  
-       // A partir daqui temos valores constantes pois nunca irão mudar.
-       // Vou usar essas constantes, que tem nome meio em português, para não ter que lembrar o ID de cada objeto no jogo.
-       // Sem saber o nome, se eu tivesse que criar uma aranha gigante para o jogador lutar, eu teria que lembrar o ID da aranha.
-       // Já com as constantes, eu poderia dizer assim: "pegue um o monstro em 'MUNDO' onde o ID é igual a MONSTRO_ID_ARANHA_GIGANTE."
-       // É assim que a maioria dos programadores de jogos determinam os objetos nos jogos.
+       /* A partir daqui temos valores constantes pois nunca irão mudar.
+          Vou usar essas constantes, que tem nome meio em português, para não ter que lembrar o ID de cada objeto no jogo.
+          Sem saber o nome, se eu tivesse que criar uma aranha gigante para o jogador lutar, eu teria que lembrar o ID da aranha.
+          Já com as constantes, eu poderia dizer assim: "pegue um o monstro em 'MUNDO' onde o ID é igual a MONSTRO_ID_ARANHA_GIGANTE."
+          É assim que a maioria dos programadores de jogos determinam os objetos nos jogos.
+       */   
 
         // Itens do jogo.
 
@@ -58,15 +60,17 @@ namespace Motor
         public const int LOCAL_ID_CAMPO_DAS_ARANHAS = 9;
 
  
-       // Isso é um construtor estático. Você deve estar pensando: "Pera, não dá para instanciar uma classe estática, 
-       // então por que ela tem um construtor? Pois é para isso que um construtor é usado, para instanciar um objeto!"
-       // Com a classe estática, o codigo do construtor vai ser o primeiro a ser lido pela primeira vez quando alguém usar
-       // alguma coisa na classe. Então, quando o jogo começar eu quero mostrar informações sobre o local atual do jogador,
-       // e quando eu precisar pegar algum dado da classe MUNDO, o metodo construtor vai ser lido, e as listas serão preenchidas.
+       /* Isso é um construtor estático. Você deve estar pensando: "Pera, não dá para instanciar uma classe estática, 
+          então por que ela tem um construtor? Pois é para isso que um construtor é usado, para instanciar um objeto!"
+          Com a classe estática, o codigo do construtor vai ser o primeiro a ser lido pela primeira vez quando alguém usar
+          alguma coisa na classe. Então, quando o jogo começar eu quero mostrar informações sobre o local atual do jogador,
+          e quando eu precisar pegar algum dado da classe MUNDO, o metodo construtor vai ser lido, e as listas serão preenchidas.
+       */   
 
-       // Dentro do construtor, eu criei 4 metodos para preencher listas diferentes.
-       // Eu não quero ter que separar os metodos, eu até poderia colocar todo o codigo dentro de cada metodo de uma vez,
-       // porém dessa maneira fica mais fácil de ler e trabalhar.
+       /* Dentro do construtor, eu criei 4 metodos para preencher listas diferentes.
+          Eu não quero ter que separar os metodos, eu até poderia colocar todo o codigo dentro de cada metodo de uma vez,
+          porém dessa maneira fica mais fácil de ler e trabalhar.
+       */   
 
         static Mundo()
         {
@@ -76,11 +80,12 @@ namespace Motor
             ColoqueLocais();
         }
 
-       // A partir daqui são os metodos que eu usei para adicionar objetos ao mundo do jogo, adicionando eles a lista estática aqui em cima
-       // Usando o metodo "Add()" em uma lista de variavel ou propriedade, dá para adicionar um objeto a esta lista.
-       // Na primeira linha do metodo "ColoqueItems()", eu estou adicionando um "objeto Arma novo" a lista de itens.
-       // Quando eu uso "new Arma()", o construtor da classe da Arma retorna um objeto "Arma" com os parametros que eu passei.
-       // Uma vez que está tudo dentro de "Itens.Add()", aquele objeto é adicionado a lista de Itens.
+       /* A partir daqui são os metodos que eu usei para adicionar objetos ao mundo do jogo, adicionando eles a lista estática aqui em cima
+          Usando o metodo "Add()" em uma lista de variavel ou propriedade, dá para adicionar um objeto a esta lista.
+          Na primeira linha do metodo "ColoqueItems()", eu estou adicionando um "objeto Arma novo" a lista de itens.
+          Quando eu uso "new Arma()", o construtor da classe da Arma retorna um objeto "Arma" com os parametros que eu passei.
+          Uma vez que está tudo dentro de "Itens.Add()", aquele objeto é adicionado a lista de Itens.
+       */   
 
         private static void ColoqueItems()
         {
@@ -166,9 +171,11 @@ namespace Motor
             campoAranha.MonstroVivoAqui = MonstroPorID(MONSTRO_ID_ARANHA_GIGANTE);
  
            
-            // liga os locais juntos
-            // aqui vai ligar ao mundo com a classe Local
-            // aqui foi necessário cuidado, mas muito cuidado. Tive que desenhar o mapa pra poder saber quais locais vão se ligar com o outro. (obviamente)
+            /* liga os locais juntos
+               aqui vai ligar ao mundo com a classe Local
+               aqui foi necessário cuidado, mas muito cuidado. Tive que desenhar o mapa pra poder saber quais locais 
+               vão se ligar com o outro. (obviamente)
+            */   
 
             casa.LocalParaNorte = praca;
 
@@ -208,14 +215,15 @@ namespace Motor
             Locais.Add(campoAranha);
         }
 
-       // Estes são os metodos que eu posso usar para pegar valores das listas estáticas. Eu poderia acessar as listas lá em cima diretamente,
-       // uma vez que elas são publicas. Porém, eu farei de uma maneira diferente.
+       /* Estes são os metodos que eu posso usar para pegar valores das listas estáticas. Eu poderia acessar as listas lá em cima diretamente,
+          uma vez que elas são publicas. Porém, eu farei de uma maneira diferente. */
        
-       // Eu passo o ID de um objeto que eu quero obter da lista (usando os IDs das constantes lá em cima).
-       // O metodo irá olhar em cada item da lista (usando o "foreach") e ver se o ID que eu passei corresponde ao ID do objeto.
-       // Se sim, vai retornar o objeto para mim.
-       // Se chegar no final da lista, e não bater (no qual isso nunca deve acontecer), o metodo retorna "null".(nada)
-
+       /* Eu passo o ID de um objeto que eu quero obter da lista (usando os IDs das constantes lá em cima).
+          O metodo irá olhar em cada item da lista (usando o "foreach") e ver se o ID que eu passei corresponde ao ID do objeto.
+          Se sim, vai retornar o objeto para mim.
+          Se chegar no final da lista, e não bater (no qual isso nunca deve acontecer), o metodo retorna "null".(nada) 
+       */
+      
         public static Item ItemPorID(int id)
         {
             foreach(Item item in Itens)
