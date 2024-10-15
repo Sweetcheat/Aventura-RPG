@@ -8,5 +8,3 @@ Eu ainda vou adicionar alguns "features" no jogo que está faltando, como salvam
 Ainda não tive tempo de comentar essa parte do código, por isso que não postei no github ainda.
 
 Use o Microsoft Visual Studio 2008 ou um mais recente para abrir o projeto.
-
-FATEC ITU - 2º SEMESTRE GTI
