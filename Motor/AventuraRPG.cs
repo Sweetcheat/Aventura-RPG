@@ -372,11 +372,11 @@ namespace Aventura_RPG
 
                     if (inventarioItem.Quantidade == 1)
                     {
-                        richTextBoxMensagens.Text += "Seu saque " + inventarioItem.Quantidade.ToString() + " " + inventarioItem.Detalhes.Nome + Environment.NewLine;
+                        richTextBoxMensagens.Text += "Seu saque: " + inventarioItem.Quantidade.ToString() + " " + inventarioItem.Detalhes.Nome + Environment.NewLine;
                     }
                     else
                     {
-                        richTextBoxMensagens.Text += "Seu saque " + inventarioItem.Quantidade.ToString() + " " + inventarioItem.Detalhes.NomePlural + Environment.NewLine;
+                        richTextBoxMensagens.Text += "Seu saque: " + inventarioItem.Quantidade.ToString() + " " + inventarioItem.Detalhes.NomePlural + Environment.NewLine;
                     }
                 }
 
