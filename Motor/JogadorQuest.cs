@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
 namespace Motor
 {
     public class JogadorQuest
@@ -12,8 +7,8 @@ namespace Motor
 
         public JogadorQuest(Quest detalhes)
         {
-          Detalhes = detalhes;
-          Completado = false;
+            Detalhes = detalhes;
+            Completado = false;
         }
     }
 }
