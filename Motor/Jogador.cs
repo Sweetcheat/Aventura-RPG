@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace Motor
 {
@@ -9,152 +7,92 @@ namespace Motor
     {
         public int Ouro { get; set; }
         public int PontosExperiencia { get; set; }
-        // public int Level { get; set; } somente coloque esta linha aqui, se não quiser que o jogador suba de level
-        public int Level
-        {
-            get { return ((PontosExperiencia / 100)+ 1); } // a cada 100 pontos de experiencia, o jogador sobe 1 level.
 
-        }
+        // A cada 100 pontos de experiência o jogador sobe 1 level.
+        // Para desativar a subida de level, substitua pela propriedade manual: public int Level { get; set; }
+        public int Level => (PontosExperiencia / 100) + 1;
+
         public Local LocalAtual { get; set; }
         public List<InventarioItem> Inventario { get; set; }
         public List<JogadorQuest> Quests { get; set; }
 
-        public Jogador(int vidaAtual, int vidaMaxima, int ouro, int pontosExperiencia) : base(vidaAtual, vidaMaxima)
+        public Jogador(int vidaAtual, int vidaMaxima, int ouro, int pontosExperiencia)
+            : base(vidaAtual, vidaMaxima)
         {
             Ouro = ouro;
             PontosExperiencia = pontosExperiencia;
-            // Level = level;  somente coloque essa linha aqui, se não quiser que o jogador suba de level
             Inventario = new List<InventarioItem>();
             Quests = new List<JogadorQuest>();
-             
         }
 
-        public bool TemItemNecessarioParaEntrarNesteLocal(Local local) 
+        public bool TemItemNecessarioParaEntrarNesteLocal(Local local)
         {
-            if(local.ItemNecessarioEntrar == null)
-            {
-                // Não há item necessário para entrar nesse local, então retorne "true"
+            // Se não há item necessário para entrar, libera acesso direto
+            if (local.ItemNecessarioEntrar == null)
                 return true;
-            }
- 
-            // Verifica se o jogador tem o item necessário no inventário
-            foreach(InventarioItem ii in Inventario)
-            {
-                if(ii.Detalhes.ID == local.ItemNecessarioEntrar.ID)
-                {
-                    // Item foi encontrado, então retorne "true"
-                    return true;
-                }
-            }
 
-            // Item necessário não foi encontrado, então retorne "false"
-            return false;
+            // Verifica se o jogador tem o item necessário no inventário
+            return Inventario.Any(ii => ii.Detalhes.ID == local.ItemNecessarioEntrar.ID);
         }
- 
+
         public bool TemEstaQuest(Quest quest)
         {
-            foreach(JogadorQuest jogadorQuest in Quests)
-            {
-                if(jogadorQuest.Detalhes.ID == quest.ID)
-                {
-                    return true;
-                }
-            }
- 
-            return false;
+            return Quests.Any(jq => jq.Detalhes.ID == quest.ID);
         }
- 
+
         public bool QuestEstaCompletada(Quest quest)
         {
-            foreach(JogadorQuest jogadorQuest in Quests)
-            {
-                if(jogadorQuest.Detalhes.ID == quest.ID)
-                {
-                    return jogadorQuest.Completado;
-                }
-            }
- 
-            return false;
+            var jogadorQuest = Quests.FirstOrDefault(jq => jq.Detalhes.ID == quest.ID);
+            return jogadorQuest != null && jogadorQuest.Completado;
         }
- 
+
         public bool TemTodosItensParaCompletarQuest(Quest quest)
         {
-            // Verifica se o jogador tem todos os itens necessários para completar a quest aqui
-            foreach(QuestCompletadaItem qci in quest.QuestCompletadaItem) // qci = quest completada item
+            // Verifica se o jogador tem todos os itens necessários na quantidade certa
+            foreach (var qci in quest.QuestCompletadaItem)
             {
-                bool encontradoNoInventarioDoJogador = false;
- 
-               //Checa cada item no inventario do jogador, e checa se existe, e se tem o suficiente
-                foreach (InventarioItem ii in Inventario) // ii = inventário item
-                {
-                    if(ii.Detalhes.ID == qci.Detalhes.ID) // O jogador tem o item em seu inventário
-                    {
-                        encontradoNoInventarioDoJogador = true;
- 
-                        if(ii.Quantidade < qci.Quantidade) // O jogador não tem a quantidade de itens necessária para completar a quest
-                        {
-                            return false;
-                        }
-                    }
-                }
- 
-                // O jogador não tem nenhum item para completar a quest
-                if (!encontradoNoInventarioDoJogador)
-                {
+                var itemNoInventario = Inventario.FirstOrDefault(ii => ii.Detalhes.ID == qci.Detalhes.ID);
+
+                if (itemNoInventario == null || itemNoInventario.Quantidade < qci.Quantidade)
                     return false;
-                }
             }
- 
-            // Se chegou aqui, então o jogador deve ter todos os itens necessários, a quantidade necessária, para completar a quest.
+
             return true;
         }
- 
+
         public void RemovaItensDeQuestCompletada(Quest quest)
         {
-            // CORREÇÃO: iteramos sobre uma cópia da lista de QuestCompletadaItem para evitar
-            // comportamento imprevisível. Usamos FirstOrDefault para localizar o item no inventário
-            // de forma segura, e só subtraímos a quantidade se o item realmente existir.
-            foreach (QuestCompletadaItem qci in quest.QuestCompletadaItem)
+            foreach (var qci in quest.QuestCompletadaItem)
             {
-                InventarioItem itemNoInventario = Inventario.FirstOrDefault(ii => ii.Detalhes.ID == qci.Detalhes.ID);
+                var itemNoInventario = Inventario.FirstOrDefault(ii => ii.Detalhes.ID == qci.Detalhes.ID);
 
                 if (itemNoInventario != null)
-                {
                     itemNoInventario.Quantidade -= qci.Quantidade;
-                }
             }
         }
- 
+
         public void AdicioneItemAoInventario(Item itemParaAdicionar)
         {
-            foreach (InventarioItem ii in Inventario)
+            var itemExistente = Inventario.FirstOrDefault(ii => ii.Detalhes.ID == itemParaAdicionar.ID);
+
+            if (itemExistente != null)
             {
-                if(ii.Detalhes.ID == itemParaAdicionar.ID)
-                {
-                    // O jogador tem o item em seu inventário, logo aumente a quantidade em +1
-                    ii.Quantidade++;
- 
-                    return; // Item adicionado, pronto. Só sair da função.
-                }
+                // O jogador já tem o item: apenas incrementa a quantidade
+                itemExistente.Quantidade++;
             }
- 
-            // O jogador não possuia o item, então adicione ao inventário na quantidade de 1
-            Inventario.Add(new InventarioItem(itemParaAdicionar, 1));
+            else
+            {
+                // Item novo: adiciona ao inventário com quantidade 1
+                Inventario.Add(new InventarioItem(itemParaAdicionar, 1));
+            }
         }
 
         public void MarqueQuestCompletada(Quest quest)
         {
-            // Encontra quest na lista de quest do jogador
-            foreach (JogadorQuest jq in Quests) // jq = jogador quest
-            {
-                if (jq.Detalhes.ID == quest.ID)
-                {
-                    // Marca quest como completado
-                    jq.Completado = true;
+            var jogadorQuest = Quests.FirstOrDefault(jq => jq.Detalhes.ID == quest.ID);
 
-                    return; // Quest foi encontrada, e marcada como completa, então sai desta função
-                }
-            }
+            if (jogadorQuest != null)
+                jogadorQuest.Completado = true;
         }
     }
 }
