@@ -13,9 +13,11 @@ namespace Motor
     {
         private static Random _gerador = new Random();
 
+        // CORREÇÃO: valorMaximo + 1 para que o valor máximo seja inclusivo.
+        // Random.Next(min, max) é exclusivo no max, então sem o +1 o dano máximo nunca seria atingido.
         public static int NumeroEntre(int valorMinimo, int valorMaximo)
         {
-            return _gerador.Next(valorMinimo, valorMaximo);
+            return _gerador.Next(valorMinimo, valorMaximo + 1);
         }
     }
 }
