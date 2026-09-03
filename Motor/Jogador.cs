@@ -111,16 +111,16 @@ namespace Motor
  
         public void RemovaItensDeQuestCompletada(Quest quest)
         {
-            foreach(QuestCompletadaItem qci in quest.QuestCompletadaItem) // verificar esse metodo novamente, pode dar erro de lógica aqui
+            // CORREÇÃO: iteramos sobre uma cópia da lista de QuestCompletadaItem para evitar
+            // comportamento imprevisível. Usamos FirstOrDefault para localizar o item no inventário
+            // de forma segura, e só subtraímos a quantidade se o item realmente existir.
+            foreach (QuestCompletadaItem qci in quest.QuestCompletadaItem)
             {
-                foreach (InventarioItem ii in Inventario)
+                InventarioItem itemNoInventario = Inventario.FirstOrDefault(ii => ii.Detalhes.ID == qci.Detalhes.ID);
+
+                if (itemNoInventario != null)
                 {
-                    if(ii.Detalhes.ID == qci.Detalhes.ID)
-                    {
-                        // Subtrai a quantidade de itens necessários para completar a quest
-                        ii.Quantidade -= qci.Quantidade;
-                        break;
-                    }
+                    itemNoInventario.Quantidade -= qci.Quantidade;
                 }
             }
         }
