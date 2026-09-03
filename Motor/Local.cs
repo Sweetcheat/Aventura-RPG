@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
-
 namespace Motor
 {
     public class Local
@@ -19,16 +13,15 @@ namespace Motor
         public Local LocalParaSul { get; set; }
         public Local LocalParaOeste { get; set; }
 
-        
-        public Local(int id, string nome, string descricao, 
+        public Local(int id, string nome, string descricao,
             Item itemNecessarioEntrar, Quest questDisponivelAqui, Monstro monstroVivoAqui)
-         {
+        {
             ID = id;
             Nome = nome;
             Descricao = descricao;
             ItemNecessarioEntrar = itemNecessarioEntrar;
             QuestDisponivelAqui = questDisponivelAqui;
             MonstroVivoAqui = monstroVivoAqui;
-          }
+        }
     }
 }
