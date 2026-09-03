@@ -1,7 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace Motor
 {
@@ -14,7 +11,8 @@ namespace Motor
         public int OuroRecompensa { get; set; }
         public List<ItemLoot> LootTable { get; set; }
 
-        public Monstro(int id, string nome, int danoMaximo, int pontosExperienciaRecompensa, int ouroRecompensa, int vidaAtual, int vidaMaxima) : base(vidaAtual, vidaMaxima)
+        public Monstro(int id, string nome, int danoMaximo, int pontosExperienciaRecompensa,
+            int ouroRecompensa, int vidaAtual, int vidaMaxima) : base(vidaAtual, vidaMaxima)
         {
             ID = id;
             Nome = nome;
@@ -23,6 +21,5 @@ namespace Motor
             OuroRecompensa = ouroRecompensa;
             LootTable = new List<ItemLoot>();
         }
-
     }
 }
