@@ -38,9 +38,9 @@
             this.lblLevel = new System.Windows.Forms.Label();
             this.label5 = new System.Windows.Forms.Label();
             this.comboBoxArmas = new System.Windows.Forms.ComboBox();
-            this.comboBoxPoçoes = new System.Windows.Forms.ComboBox();
+            this.comboBoxPocoes = new System.Windows.Forms.ComboBox();
             this.buttonUsarArma = new System.Windows.Forms.Button();
-            this.buttonUsarPoçao = new System.Windows.Forms.Button();
+            this.buttonUsarPocao = new System.Windows.Forms.Button();
             this.buttonNorte = new System.Windows.Forms.Button();
             this.buttonLeste = new System.Windows.Forms.Button();
             this.buttonSul = new System.Windows.Forms.Button();
@@ -139,14 +139,14 @@
             this.comboBoxArmas.Size = new System.Drawing.Size(121, 21);
             this.comboBoxArmas.TabIndex = 16;
             // 
-            // comboBoxPoçoes
+            // comboBoxPocoes
             // 
-            this.comboBoxPoçoes.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboBoxPoçoes.FormattingEnabled = true;
-            this.comboBoxPoçoes.Location = new System.Drawing.Point(369, 593);
-            this.comboBoxPoçoes.Name = "comboBoxPoçoes";
-            this.comboBoxPoçoes.Size = new System.Drawing.Size(121, 21);
-            this.comboBoxPoçoes.TabIndex = 17;
+            this.comboBoxPocoes.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBoxPocoes.FormattingEnabled = true;
+            this.comboBoxPocoes.Location = new System.Drawing.Point(369, 593);
+            this.comboBoxPocoes.Name = "comboBoxPocoes";
+            this.comboBoxPocoes.Size = new System.Drawing.Size(121, 21);
+            this.comboBoxPocoes.TabIndex = 17;
             // 
             // buttonUsarArma
             // 
@@ -158,15 +158,15 @@
             this.buttonUsarArma.UseVisualStyleBackColor = true;
             this.buttonUsarArma.Click += new System.EventHandler(this.buttonUsarArma_Click);
             // 
-            // buttonUsarPoçao
+            // buttonUsarPocao
             // 
-            this.buttonUsarPoçao.Location = new System.Drawing.Point(620, 593);
-            this.buttonUsarPoçao.Name = "buttonUsarPoçao";
-            this.buttonUsarPoçao.Size = new System.Drawing.Size(75, 23);
-            this.buttonUsarPoçao.TabIndex = 19;
-            this.buttonUsarPoçao.Text = "Usar Poção";
-            this.buttonUsarPoçao.UseVisualStyleBackColor = true;
-            this.buttonUsarPoçao.Click += new System.EventHandler(this.buttonUsarPoçao_Click);
+            this.buttonUsarPocao.Location = new System.Drawing.Point(620, 593);
+            this.buttonUsarPocao.Name = "buttonUsarPocao";
+            this.buttonUsarPocao.Size = new System.Drawing.Size(75, 23);
+            this.buttonUsarPocao.TabIndex = 19;
+            this.buttonUsarPocao.Text = "Usar Poção";
+            this.buttonUsarPocao.UseVisualStyleBackColor = true;
+            this.buttonUsarPocao.Click += new System.EventHandler(this.buttonUsarPocao_Click);
             // 
             // buttonNorte
             // 
@@ -268,9 +268,9 @@
             this.Controls.Add(this.buttonSul);
             this.Controls.Add(this.buttonLeste);
             this.Controls.Add(this.buttonNorte);
-            this.Controls.Add(this.buttonUsarPoçao);
+            this.Controls.Add(this.buttonUsarPocao);
             this.Controls.Add(this.buttonUsarArma);
-            this.Controls.Add(this.comboBoxPoçoes);
+            this.Controls.Add(this.comboBoxPocoes);
             this.Controls.Add(this.comboBoxArmas);
             this.Controls.Add(this.label5);
             this.Controls.Add(this.lblLevel);
@@ -304,9 +304,9 @@
         private System.Windows.Forms.Label lblLevel;
         private System.Windows.Forms.Label label5;
         private System.Windows.Forms.ComboBox comboBoxArmas;
-        private System.Windows.Forms.ComboBox comboBoxPoçoes;
+        private System.Windows.Forms.ComboBox comboBoxPocoes;
         private System.Windows.Forms.Button buttonUsarArma;
-        private System.Windows.Forms.Button buttonUsarPoçao;
+        private System.Windows.Forms.Button buttonUsarPocao;
         private System.Windows.Forms.Button buttonNorte;
         private System.Windows.Forms.Button buttonLeste;
         private System.Windows.Forms.Button buttonSul;

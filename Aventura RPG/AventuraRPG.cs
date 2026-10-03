@@ -22,6 +22,9 @@ namespace Aventura_RPG
         // Chance (em 100) de evento de combate: crítico do jogador (dano x2) ou falha do monstro (dano zero)
         private const int CHANCE_EVENTO_COMBATE = 10;
 
+        // Limite de linhas mantidas no log de mensagens (o RichTextBox tem teto de 32.767 caracteres)
+        private const int MAX_LINHAS_LOG = 200;
+
         public AventuraRPG()
         {
             InitializeComponent();
@@ -46,7 +49,7 @@ namespace Aventura_RPG
             // Se o local exige um item que o jogador não tem, bloqueia a entrada
             if (!_jogador.TemItemNecessarioParaEntrarNesteLocal(novoLocal))
             {
-                richTextBoxMensagens.Text += $"Você precisa ter um {novoLocal.ItemNecessarioEntrar.Nome} para acessar este local.{Environment.NewLine}";
+                AdicionaMensagem($"Você precisa ter um {novoLocal.ItemNecessarioEntrar.Nome} para acessar este local.{Environment.NewLine}");
                 return;
             }
 
@@ -82,18 +85,18 @@ namespace Aventura_RPG
                 {
                     if (!jogadorJaCompletouQuest && _jogador.TemTodosItensParaCompletarQuest(novoLocal.QuestDisponivelAqui))
                     {
-                        richTextBoxMensagens.Text += Environment.NewLine;
-                        richTextBoxMensagens.Text += $"Você completou '{novoLocal.QuestDisponivelAqui.Nome}'.{Environment.NewLine}";
+                        AdicionaMensagem(Environment.NewLine);
+                        AdicionaMensagem($"Você completou '{novoLocal.QuestDisponivelAqui.Nome}'.{Environment.NewLine}");
 
                         _jogador.RemovaItensDeQuestCompletada(novoLocal.QuestDisponivelAqui);
 
-                        richTextBoxMensagens.Text += $"Você recebe:{Environment.NewLine}";
-                        richTextBoxMensagens.Text += $"{novoLocal.QuestDisponivelAqui.PontosExperienciaRecompensa} pontos de experiência{Environment.NewLine}";
-                        richTextBoxMensagens.Text += $"{novoLocal.QuestDisponivelAqui.OuroRecompensa} ouro{Environment.NewLine}";
-                        richTextBoxMensagens.Text += $"{novoLocal.QuestDisponivelAqui.ItemRecompensa.Nome}{Environment.NewLine}";
-                        richTextBoxMensagens.Text += Environment.NewLine;
+                        AdicionaMensagem($"Você recebe:{Environment.NewLine}");
+                        AdicionaMensagem($"{novoLocal.QuestDisponivelAqui.PontosExperienciaRecompensa} pontos de experiência{Environment.NewLine}");
+                        AdicionaMensagem($"{novoLocal.QuestDisponivelAqui.OuroRecompensa} ouro{Environment.NewLine}");
+                        AdicionaMensagem($"{novoLocal.QuestDisponivelAqui.ItemRecompensa.Nome}{Environment.NewLine}");
+                        AdicionaMensagem(Environment.NewLine);
 
-                        _jogador.PontosExperiencia += novoLocal.QuestDisponivelAqui.PontosExperienciaRecompensa;
+                        GanhaExperiencia(novoLocal.QuestDisponivelAqui.PontosExperienciaRecompensa);
                         _jogador.Ouro              += novoLocal.QuestDisponivelAqui.OuroRecompensa;
 
                         _jogador.AdicioneItemAoInventario(novoLocal.QuestDisponivelAqui.ItemRecompensa);
@@ -103,18 +106,18 @@ namespace Aventura_RPG
                 else
                 {
                     // Jogador ainda não tem a quest: entrega ela
-                    richTextBoxMensagens.Text += Environment.NewLine;
-                    richTextBoxMensagens.Text += $"Você recebeu a quest: {novoLocal.QuestDisponivelAqui.Nome}.{Environment.NewLine}";
-                    richTextBoxMensagens.Text += $"{novoLocal.QuestDisponivelAqui.Descricao}{Environment.NewLine}";
-                    richTextBoxMensagens.Text += $"Para completá-la, retorne com:{Environment.NewLine}";
+                    AdicionaMensagem(Environment.NewLine);
+                    AdicionaMensagem($"Você recebeu a quest: {novoLocal.QuestDisponivelAqui.Nome}.{Environment.NewLine}");
+                    AdicionaMensagem($"{novoLocal.QuestDisponivelAqui.Descricao}{Environment.NewLine}");
+                    AdicionaMensagem($"Para completá-la, retorne com:{Environment.NewLine}");
 
                     foreach (var qci in novoLocal.QuestDisponivelAqui.QuestCompletadaItem)
                     {
                         var nomeItem = qci.Quantidade == 1 ? qci.Detalhes.Nome : qci.Detalhes.NomePlural;
-                        richTextBoxMensagens.Text += $"{qci.Quantidade} {nomeItem}{Environment.NewLine}";
+                        AdicionaMensagem($"{qci.Quantidade} {nomeItem}{Environment.NewLine}");
                     }
 
-                    richTextBoxMensagens.Text += Environment.NewLine;
+                    AdicionaMensagem(Environment.NewLine);
                     _jogador.Quests.Add(new JogadorQuest(novoLocal.QuestDisponivelAqui));
                 }
             }
@@ -128,8 +131,8 @@ namespace Aventura_RPG
                 && _jogador.QuestEstaCompletada(questJardimAlquimistas)
                 && _jogador.QuestEstaCompletada(questAreaCamponeses))
             {
-                richTextBoxMensagens.Text += Environment.NewLine;
-                richTextBoxMensagens.Text += $"Você completou as duas quests e recebeu um Porrete!{Environment.NewLine}";
+                AdicionaMensagem(Environment.NewLine);
+                AdicionaMensagem($"Você completou as duas quests e recebeu um Porrete!{Environment.NewLine}");
 
                 _jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_PORRETE));
                 _jogador.RecebeuRecompensaPorrete = true;
@@ -142,7 +145,7 @@ namespace Aventura_RPG
             {
                 if (novoLocal.MonstroVivoAqui != null)
                 {
-                    richTextBoxMensagens.Text += $"Você vê um(a) {novoLocal.MonstroVivoAqui.Nome}{Environment.NewLine}";
+                    AdicionaMensagem($"Você vê um(a) {novoLocal.MonstroVivoAqui.Nome}{Environment.NewLine}");
 
                     // Instancia um novo monstro a partir dos dados padrão do Mundo
                     var monstroNormal = Mundo.MonstroPorID(novoLocal.MonstroVivoAqui.ID);
@@ -203,7 +206,7 @@ namespace Aventura_RPG
             dataGridViewQuests.Rows.Clear();
 
             foreach (var jq in _jogador.Quests)
-                dataGridViewQuests.Rows.Add(jq.Detalhes.Nome, jq.Completado.ToString());
+                dataGridViewQuests.Rows.Add(jq.Detalhes.Nome, jq.Completado ? "✓" : "–");
         }
 
         private void AtualizaListaArmaNoMenu()
@@ -232,10 +235,10 @@ namespace Aventura_RPG
 
             if (pocoes.Count > 0)
             {
-                comboBoxPoçoes.DataSource    = pocoes;
-                comboBoxPoçoes.DisplayMember = "Nome";
-                comboBoxPoçoes.ValueMember   = "ID";
-                comboBoxPoçoes.SelectedIndex = 0;
+                comboBoxPocoes.DataSource    = pocoes;
+                comboBoxPocoes.DisplayMember = "Nome";
+                comboBoxPocoes.ValueMember   = "ID";
+                comboBoxPocoes.SelectedIndex = 0;
             }
             // A visibilidade dos controles de combate é decidida por AtualizaVisibilidadeCombate()
         }
@@ -252,18 +255,18 @@ namespace Aventura_RPG
                 danoAoMonstro *= 2;
 
             _monstroAtual.VidaAtual -= danoAoMonstro;
-            richTextBoxMensagens.Text += $"Você acertou o(a) {_monstroAtual.Nome} e causou {danoAoMonstro} ponto(s) de dano{(critico ? " (CRÍTICO!)" : "")}.{Environment.NewLine}";
+            AdicionaMensagem($"Você acertou o(a) {_monstroAtual.Nome} e causou {danoAoMonstro} ponto(s) de dano{(critico ? " (CRÍTICO!)" : "")}.{Environment.NewLine}");
 
             if (_monstroAtual.VidaAtual <= 0)
             {
-                richTextBoxMensagens.Text += Environment.NewLine;
-                richTextBoxMensagens.Text += $"Você derrotou o(a) {_monstroAtual.Nome}{Environment.NewLine}";
+                AdicionaMensagem(Environment.NewLine);
+                AdicionaMensagem($"Você derrotou o(a) {_monstroAtual.Nome}{Environment.NewLine}");
 
-                _jogador.PontosExperiencia += _monstroAtual.PontosExperienciaRecompensa;
-                richTextBoxMensagens.Text  += $"Você recebe {_monstroAtual.PontosExperienciaRecompensa} pontos de experiência.{Environment.NewLine}";
+                GanhaExperiencia(_monstroAtual.PontosExperienciaRecompensa);
+                AdicionaMensagem($"Você recebe {_monstroAtual.PontosExperienciaRecompensa} pontos de experiência.{Environment.NewLine}");
 
                 _jogador.Ouro             += _monstroAtual.OuroRecompensa;
-                richTextBoxMensagens.Text  += $"Você recebe {_monstroAtual.OuroRecompensa} de ouro.{Environment.NewLine}";
+                AdicionaMensagem($"Você recebe {_monstroAtual.OuroRecompensa} de ouro.{Environment.NewLine}");
 
                 // Sorteia o loot do monstro
                 var itensSaqueados = _monstroAtual.LootTable
@@ -284,7 +287,7 @@ namespace Aventura_RPG
                 {
                     _jogador.AdicioneItemAoInventario(item.Detalhes);
                     var nomeItem = item.Quantidade == 1 ? item.Detalhes.Nome : item.Detalhes.NomePlural;
-                    richTextBoxMensagens.Text += $"Seu saque: {item.Quantidade} {nomeItem}{Environment.NewLine}";
+                    AdicionaMensagem($"Seu saque: {item.Quantidade} {nomeItem}{Environment.NewLine}");
                 }
 
                 // Encerra o combate sem reentrar em MoverPara: o monstro não ressuscita no local
@@ -298,7 +301,7 @@ namespace Aventura_RPG
                 AtualizaListaPocaoNoMenu();
                 AtualizaVisibilidadeCombate();
 
-                richTextBoxMensagens.Text += Environment.NewLine;
+                AdicionaMensagem(Environment.NewLine);
             }
             else
             {
@@ -307,9 +310,9 @@ namespace Aventura_RPG
                 int danoAoJogador = monstroFalhou ? 0 : GeradorNumeroAleatorio.NumeroEntre(0, _monstroAtual.DanoMaximo);
 
                 if (monstroFalhou)
-                    richTextBoxMensagens.Text += $"O(A) {_monstroAtual.Nome} errou o ataque.{Environment.NewLine}";
+                    AdicionaMensagem($"O(A) {_monstroAtual.Nome} errou o ataque.{Environment.NewLine}");
                 else
-                    richTextBoxMensagens.Text += $"O(A) {_monstroAtual.Nome} causou a você {danoAoJogador} pontos de dano.{Environment.NewLine}";
+                    AdicionaMensagem($"O(A) {_monstroAtual.Nome} causou a você {danoAoJogador} pontos de dano.{Environment.NewLine}");
 
                 _jogador.VidaAtual -= danoAoJogador;
                 lblVida.Text = $"{_jogador.VidaAtual}/{_jogador.VidaMaximaEfetiva}";
@@ -323,15 +326,15 @@ namespace Aventura_RPG
             RolarMensagensParaFim();
         }
 
-        private void buttonUsarPoçao_Click(object sender, EventArgs e)
+        private void buttonUsarPocao_Click(object sender, EventArgs e)
         {
-            var pocao = (PocaoCura)comboBoxPoçoes.SelectedItem;
+            var pocao = (PocaoCura)comboBoxPocoes.SelectedItem;
 
             // Com a vida cheia a poção não é consumida e o turno não é gasto
             // (o monstro não contra-ataca)
             if (_jogador.VidaAtual >= _jogador.VidaMaximaEfetiva)
             {
-                richTextBoxMensagens.Text += $"Sua vida já está cheia; a {pocao.Nome} não foi utilizada.{Environment.NewLine}";
+                AdicionaMensagem($"Sua vida já está cheia; a {pocao.Nome} não foi utilizada.{Environment.NewLine}");
                 RolarMensagensParaFim();
                 return;
             }
@@ -344,7 +347,7 @@ namespace Aventura_RPG
             if (itemPocao != null)
                 itemPocao.Quantidade--;
 
-            richTextBoxMensagens.Text += $"Você bebeu uma {pocao.Nome}{Environment.NewLine}";
+            AdicionaMensagem($"Você bebeu uma {pocao.Nome}{Environment.NewLine}");
 
             // Usar a poção não consome o turno: o monstro não contra-ataca e o
             // jogador continua com o turno disponível (pode beber outra poção ou atacar)
@@ -362,14 +365,24 @@ namespace Aventura_RPG
         {
             int ouroPerdido = _jogador.Ouro / 4;
 
-            richTextBoxMensagens.Text += $"O(A) {monstro.Nome} matou você.{Environment.NewLine}";
+            AdicionaMensagem($"O(A) {monstro.Nome} matou você.{Environment.NewLine}");
             if (ouroPerdido > 0)
-                richTextBoxMensagens.Text += $"Você perdeu {ouroPerdido} de ouro por conta da derrota.{Environment.NewLine}";
+                AdicionaMensagem($"Você perdeu {ouroPerdido} de ouro por conta da derrota.{Environment.NewLine}");
 
             _jogador.Ouro -= ouroPerdido;
             _monstroAtual = null;
 
             MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA));
+        }
+
+        // Concentra o ganho de XP e avisa quando o jogador sobe de level
+        private void GanhaExperiencia(int quantidade)
+        {
+            int levelAntes = _jogador.Level;
+            _jogador.PontosExperiencia += quantidade;
+
+            if (_jogador.Level > levelAntes)
+                AdicionaMensagem($"Você subiu para o level {_jogador.Level}!{Environment.NewLine}");
         }
 
         // Única fonte de visibilidade dos controles de combate:
@@ -381,8 +394,19 @@ namespace Aventura_RPG
 
             comboBoxArmas.Visible    = _monstroAtual != null && temArma;
             buttonUsarArma.Visible   = _monstroAtual != null && temArma;
-            comboBoxPoçoes.Visible   = _monstroAtual != null && temPocao;
-            buttonUsarPoçao.Visible  = _monstroAtual != null && temPocao;
+            comboBoxPocoes.Visible   = _monstroAtual != null && temPocao;
+            buttonUsarPocao.Visible  = _monstroAtual != null && temPocao;
+        }
+
+        // Mantém só as últimas MAX_LINHAS_LOG linhas do log: o RichTextBox tem limite
+        // de 32.767 caracteres (crash ao exceder) e a performance degrada com o texto crescendo
+        private void AdicionaMensagem(string mensagem)
+        {
+            richTextBoxMensagens.Text += mensagem;
+
+            var linhas = richTextBoxMensagens.Text.Split('\n');
+            if (linhas.Length > MAX_LINHAS_LOG)
+                richTextBoxMensagens.Text = string.Join("\n", linhas.Skip(linhas.Length - MAX_LINHAS_LOG).ToArray());
         }
 
         private void RolarMensagensParaFim()
