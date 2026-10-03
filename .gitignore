@@ -16,3 +16,6 @@ Backup/
 # Temporary files
 *.tmp
 *.log
+
+# Local OpenCode config
+opencode.json

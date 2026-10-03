@@ -5,6 +5,6 @@ Um jogo simples de RPG. O código foi todo escrito e comentado por mim (Lucas Ba
 Este é um jogo de RPG com propósito estudantil, sem fins lucrativos.
 
 Eu ainda vou adicionar alguns "features" no jogo que está faltando, como salvamento do progresso via arquivo XML.
-Ainda não tive tempo de comentar essa parte do código, por isso que não postei no github ainda.
+O projeto está disponível em: https://github.com/Sweetcheat/Aventura-RPG
 
-Use o Microsoft Visual Studio 2008 ou um mais recente para abrir o projeto.
+Use um Visual Studio recente para abrir o projeto (o .sln foi salvo no VS 18; os projetos usam .NET Framework 3.5).

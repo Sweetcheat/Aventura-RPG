@@ -59,17 +59,15 @@ namespace Aventura_RPG
             bool mudouDeLocal = !ReferenceEquals(novoLocal, _jogador.LocalAtual);
             _jogador.LocalAtual = novoLocal;
 
-            // Mostra/esconde botões de movimento disponíveis
-            buttonNorte.Visible = novoLocal.LocalParaNorte != null;
-            buttonLeste.Visible = novoLocal.LocalParaLeste != null;
-            buttonSul.Visible   = novoLocal.LocalParaSul   != null;
-            buttonOeste.Visible = novoLocal.LocalParaOeste != null;
+            // Mostra/esconde botões de movimento disponíveis (bloqueados durante o combate)
+            AtualizaBotoesMovimento();
 
             // Mostra nome e descrição do local
             richTextBoxLocal.Text = $"{novoLocal.Nome}{Environment.NewLine}{novoLocal.Descricao}{Environment.NewLine}";
 
-            // Cura completamente o jogador ao mudar de local
-            if (mudouDeLocal)
+            // Apenas a Casa cura a vida (total): nos demais locais o jogador
+            // mantém a vida que tinha (cura em campo só com poção)
+            if (mudouDeLocal && novoLocal.ID == Mundo.LOCAL_ID_CASA)
             {
                 _jogador.VidaAtual = _jogador.VidaMaximaEfetiva;
                 lblVida.Text = $"{_jogador.VidaAtual}/{_jogador.VidaMaximaEfetiva}";
@@ -223,6 +221,10 @@ namespace Aventura_RPG
                 comboBoxArmas.ValueMember   = "ID";
                 comboBoxArmas.SelectedIndex = 0;
             }
+            else
+            {
+                comboBoxArmas.DataSource = null;
+            }
             // A visibilidade dos controles de combate é decidida por AtualizaVisibilidadeCombate()
         }
 
@@ -240,6 +242,10 @@ namespace Aventura_RPG
                 comboBoxPocoes.ValueMember   = "ID";
                 comboBoxPocoes.SelectedIndex = 0;
             }
+            else
+            {
+                comboBoxPocoes.DataSource = null;
+            }
             // A visibilidade dos controles de combate é decidida por AtualizaVisibilidadeCombate()
         }
 
@@ -247,7 +253,8 @@ namespace Aventura_RPG
         {
             var armaAtual    = (Arma)comboBoxArmas.SelectedItem;
             // Bônus de level (a partir do level 2): +1 de dano, aplicado antes do crítico
-            int danoAoMonstro = GeradorNumeroAleatorio.NumeroEntre(armaAtual.DanoMinimo, armaAtual.DanoMaximo) + (_jogador.Level - 1);
+            // Dano mínimo de 1: a arma sempre acerta (o bônus de level é somado depois)
+            int danoAoMonstro = Math.Max(1, GeradorNumeroAleatorio.NumeroEntre(armaAtual.DanoMinimo, armaAtual.DanoMaximo)) + (_jogador.Level - 1);
 
             // Crítico (10%): dobra o dano final, desde que seja maior que zero
             bool critico = danoAoMonstro > 0 && GeradorNumeroAleatorio.NumeroEntre(1, 100) <= CHANCE_EVENTO_COMBATE;
@@ -323,6 +330,7 @@ namespace Aventura_RPG
                 }
             }
 
+            AtualizaBotoesMovimento();
             RolarMensagensParaFim();
         }
 
@@ -383,6 +391,19 @@ namespace Aventura_RPG
 
             if (_jogador.Level > levelAntes)
                 AdicionaMensagem($"Você subiu para o level {_jogador.Level}!{Environment.NewLine}");
+        }
+
+        // Mostra/esconde os botões de movimento: só estão disponíveis quando não há
+        // monstro vivo no local (durante o combate o jogador precisa encerrar a luta)
+        private void AtualizaBotoesMovimento()
+        {
+            bool semMonstro = _monstroAtual == null;
+            var local = _jogador.LocalAtual;
+
+            buttonNorte.Visible = semMonstro && local.LocalParaNorte != null;
+            buttonLeste.Visible = semMonstro && local.LocalParaLeste != null;
+            buttonSul.Visible   = semMonstro && local.LocalParaSul   != null;
+            buttonOeste.Visible = semMonstro && local.LocalParaOeste != null;
         }
 
         // Única fonte de visibilidade dos controles de combate:
