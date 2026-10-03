@@ -1,6 +1,7 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 10.00
-# Visual Studio 2008
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.9.12120.119
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aventura RPG", "Aventura RPG\Aventura RPG.csproj", "{986ADF71-DF1A-483A-AC5D-991DB5B05B31}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Motor", "Motor\Motor.csproj", "{373890BE-DF63-4D46-9453-A519408C2901}"
@@ -22,5 +23,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2A62C4F8-6970-441D-88E1-A69A65B5FAD1}
 	EndGlobalSection
 EndGlobal

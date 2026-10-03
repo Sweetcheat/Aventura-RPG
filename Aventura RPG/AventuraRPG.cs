@@ -19,13 +19,18 @@ namespace Aventura_RPG
         private Jogador _jogador;
         private Monstro _monstroAtual;
 
+        // Chance (em 100) de evento de combate: crítico do jogador (dano x2) ou falha do monstro (dano zero)
+        private const int CHANCE_EVENTO_COMBATE = 10;
+
         public AventuraRPG()
         {
             InitializeComponent();
 
             _jogador = new Jogador(15, 15, 0, 0);
-            MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA));
+            // A espada inicial é adicionada antes do primeiro MoverPara, para que
+            // o inventário já apareça com ela ao iniciar o jogo
             _jogador.Inventario.Add(new InventarioItem(Mundo.ItemPorID(Mundo.ITEM_ID_ESPADA_ENFERRUJADA), 1));
+            MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA));
 
             AtualizaStatsDoJogador();
         }
@@ -45,6 +50,10 @@ namespace Aventura_RPG
                 return;
             }
 
+            // A cura e o respawn de monstro só ocorrem em mudanças reais de local.
+            // Ao encerrar um combate, o form não reentra em MoverPara (ver buttonUsarArma_Click),
+            // então o monstro derrotado só volta quando o jogador sair e voltar a este local.
+            bool mudouDeLocal = !ReferenceEquals(novoLocal, _jogador.LocalAtual);
             _jogador.LocalAtual = novoLocal;
 
             // Mostra/esconde botões de movimento disponíveis
@@ -57,8 +66,11 @@ namespace Aventura_RPG
             richTextBoxLocal.Text = $"{novoLocal.Nome}{Environment.NewLine}{novoLocal.Descricao}{Environment.NewLine}";
 
             // Cura completamente o jogador ao mudar de local
-            _jogador.VidaAtual = _jogador.VidaMaxima;
-            lblVida.Text = _jogador.VidaAtual.ToString();
+            if (mudouDeLocal)
+            {
+                _jogador.VidaAtual = _jogador.VidaMaximaEfetiva;
+                lblVida.Text = $"{_jogador.VidaAtual}/{_jogador.VidaMaximaEfetiva}";
+            }
 
             // Lógica de quest do local
             if (novoLocal.QuestDisponivelAqui != null)
@@ -107,34 +119,45 @@ namespace Aventura_RPG
                 }
             }
 
-            // Lógica de monstro do local
-            if (novoLocal.MonstroVivoAqui != null)
+            // Recompensa especial: o Porrete é concedido uma única vez quando o jogador
+            // completa as duas quests, independentemente da ordem em que foram feitas
+            var questJardimAlquimistas = Mundo.QuestPorID(Mundo.QUEST_ID_LIMPAR_JARDIM_DOS_ALQUIMISTAS);
+            var questAreaCamponeses    = Mundo.QuestPorID(Mundo.QUEST_ID_LIMPAR_AREA_DOS_CAMPONESES);
+
+            if (!_jogador.RecebeuRecompensaPorrete
+                && _jogador.QuestEstaCompletada(questJardimAlquimistas)
+                && _jogador.QuestEstaCompletada(questAreaCamponeses))
             {
-                richTextBoxMensagens.Text += $"Você vê um(a) {novoLocal.MonstroVivoAqui.Nome}{Environment.NewLine}";
+                richTextBoxMensagens.Text += Environment.NewLine;
+                richTextBoxMensagens.Text += $"Você completou as duas quests e recebeu um Porrete!{Environment.NewLine}";
 
-                // Instancia um novo monstro a partir dos dados padrão do Mundo
-                var monstroNormal = Mundo.MonstroPorID(novoLocal.MonstroVivoAqui.ID);
-                _monstroAtual = new Monstro(
-                    monstroNormal.ID, monstroNormal.Nome, monstroNormal.DanoMaximo,
-                    monstroNormal.PontosExperienciaRecompensa, monstroNormal.OuroRecompensa,
-                    monstroNormal.VidaAtual, monstroNormal.VidaMaxima);
-
-                foreach (var itemLoot in monstroNormal.LootTable)
-                    _monstroAtual.LootTable.Add(itemLoot);
-
-                comboBoxArmas.Visible   = true;
-                comboBoxPoçoes.Visible  = true;
-                buttonUsarArma.Visible  = true;
-                buttonUsarPoçao.Visible = true;
+                _jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_PORRETE));
+                _jogador.RecebeuRecompensaPorrete = true;
             }
-            else
-            {
-                _monstroAtual = null;
 
-                comboBoxArmas.Visible   = false;
-                comboBoxPoçoes.Visible  = false;
-                buttonUsarArma.Visible  = false;
-                buttonUsarPoçao.Visible = false;
+            // Lógica de monstro do local: o monstro é recriado apenas quando o jogador
+            // realmente muda de local (sai e volta), evitando o respawn instantâneo
+            // logo após a derrota.
+            if (mudouDeLocal)
+            {
+                if (novoLocal.MonstroVivoAqui != null)
+                {
+                    richTextBoxMensagens.Text += $"Você vê um(a) {novoLocal.MonstroVivoAqui.Nome}{Environment.NewLine}";
+
+                    // Instancia um novo monstro a partir dos dados padrão do Mundo
+                    var monstroNormal = Mundo.MonstroPorID(novoLocal.MonstroVivoAqui.ID);
+                    _monstroAtual = new Monstro(
+                        monstroNormal.ID, monstroNormal.Nome, monstroNormal.DanoMaximo,
+                        monstroNormal.PontosExperienciaRecompensa, monstroNormal.OuroRecompensa,
+                        monstroNormal.VidaAtual, monstroNormal.VidaMaxima);
+
+                    foreach (var itemLoot in monstroNormal.LootTable)
+                        _monstroAtual.LootTable.Add(itemLoot);
+                }
+                else
+                {
+                    _monstroAtual = null;
+                }
             }
 
             AtualizaStatsDoJogador();
@@ -142,12 +165,13 @@ namespace Aventura_RPG
             AtualizaListaQuestNoMenu();
             AtualizaListaArmaNoMenu();
             AtualizaListaPocaoNoMenu();
-            AutoScroll();
+            AtualizaVisibilidadeCombate();
+            RolarMensagensParaFim();
         }
 
         private void AtualizaStatsDoJogador()
         {
-            lblVida.Text        = _jogador.VidaAtual.ToString();
+            lblVida.Text        = $"{_jogador.VidaAtual}/{_jogador.VidaMaximaEfetiva}";
             lblOuro.Text        = _jogador.Ouro.ToString();
             lblExperiencia.Text = _jogador.PontosExperiencia.ToString();
             lblLevel.Text       = _jogador.Level.ToString();
@@ -189,18 +213,14 @@ namespace Aventura_RPG
                 .Select(ii => (Arma)ii.Detalhes)
                 .ToList();
 
-            if (armas.Count == 0)
-            {
-                comboBoxArmas.Visible  = false;
-                buttonUsarArma.Visible = false;
-            }
-            else
+            if (armas.Count > 0)
             {
                 comboBoxArmas.DataSource    = armas;
                 comboBoxArmas.DisplayMember = "Nome";
                 comboBoxArmas.ValueMember   = "ID";
                 comboBoxArmas.SelectedIndex = 0;
             }
+            // A visibilidade dos controles de combate é decidida por AtualizaVisibilidadeCombate()
         }
 
         private void AtualizaListaPocaoNoMenu()
@@ -210,27 +230,29 @@ namespace Aventura_RPG
                 .Select(ii => (PocaoCura)ii.Detalhes)
                 .ToList();
 
-            if (pocoes.Count == 0)
-            {
-                comboBoxPoçoes.Visible  = false;
-                buttonUsarPoçao.Visible = false;
-            }
-            else
+            if (pocoes.Count > 0)
             {
                 comboBoxPoçoes.DataSource    = pocoes;
                 comboBoxPoçoes.DisplayMember = "Nome";
                 comboBoxPoçoes.ValueMember   = "ID";
                 comboBoxPoçoes.SelectedIndex = 0;
             }
+            // A visibilidade dos controles de combate é decidida por AtualizaVisibilidadeCombate()
         }
 
         private void buttonUsarArma_Click(object sender, EventArgs e)
         {
             var armaAtual    = (Arma)comboBoxArmas.SelectedItem;
-            int danoAoMonstro = GeradorNumeroAleatorio.NumeroEntre(armaAtual.DanoMinimo, armaAtual.DanoMaximo);
+            // Bônus de level (a partir do level 2): +1 de dano, aplicado antes do crítico
+            int danoAoMonstro = GeradorNumeroAleatorio.NumeroEntre(armaAtual.DanoMinimo, armaAtual.DanoMaximo) + (_jogador.Level - 1);
+
+            // Crítico (10%): dobra o dano final, desde que seja maior que zero
+            bool critico = danoAoMonstro > 0 && GeradorNumeroAleatorio.NumeroEntre(1, 100) <= CHANCE_EVENTO_COMBATE;
+            if (critico)
+                danoAoMonstro *= 2;
 
             _monstroAtual.VidaAtual -= danoAoMonstro;
-            richTextBoxMensagens.Text += $"Você acertou o(a) {_monstroAtual.Nome} e causou {danoAoMonstro} ponto(s) de dano.{Environment.NewLine}";
+            richTextBoxMensagens.Text += $"Você acertou o(a) {_monstroAtual.Nome} e causou {danoAoMonstro} ponto(s) de dano{(critico ? " (CRÍTICO!)" : "")}.{Environment.NewLine}";
 
             if (_monstroAtual.VidaAtual <= 0)
             {
@@ -265,39 +287,57 @@ namespace Aventura_RPG
                     richTextBoxMensagens.Text += $"Seu saque: {item.Quantidade} {nomeItem}{Environment.NewLine}";
                 }
 
+                // Encerra o combate sem reentrar em MoverPara: o monstro não ressuscita no local
+                // nem o jogador ganha cura gratuita. Ele só volta se o jogador
+                // sair e voltar a este local.
+                _monstroAtual = null;
+
                 AtualizaStatsDoJogador();
                 AtualizaListaInventarioNoMenu();
                 AtualizaListaArmaNoMenu();
                 AtualizaListaPocaoNoMenu();
+                AtualizaVisibilidadeCombate();
 
                 richTextBoxMensagens.Text += Environment.NewLine;
-                MoverPara(_jogador.LocalAtual);
             }
             else
             {
-                // Monstro ainda vivo: contra-ataca
-                int danoAoJogador = GeradorNumeroAleatorio.NumeroEntre(0, _monstroAtual.DanoMaximo);
-                richTextBoxMensagens.Text += $"O(A) {_monstroAtual.Nome} causou a você {danoAoJogador} pontos de dano.{Environment.NewLine}";
+                // Monstro ainda vivo: contra-ataca (10% de chance de falhar)
+                bool monstroFalhou = GeradorNumeroAleatorio.NumeroEntre(1, 100) <= CHANCE_EVENTO_COMBATE;
+                int danoAoJogador = monstroFalhou ? 0 : GeradorNumeroAleatorio.NumeroEntre(0, _monstroAtual.DanoMaximo);
+
+                if (monstroFalhou)
+                    richTextBoxMensagens.Text += $"O(A) {_monstroAtual.Nome} errou o ataque.{Environment.NewLine}";
+                else
+                    richTextBoxMensagens.Text += $"O(A) {_monstroAtual.Nome} causou a você {danoAoJogador} pontos de dano.{Environment.NewLine}";
 
                 _jogador.VidaAtual -= danoAoJogador;
-                lblVida.Text = _jogador.VidaAtual.ToString();
+                lblVida.Text = $"{_jogador.VidaAtual}/{_jogador.VidaMaximaEfetiva}";
 
                 if (_jogador.VidaAtual <= 0)
                 {
-                    richTextBoxMensagens.Text += $"O(A) {_monstroAtual.Nome} matou você.{Environment.NewLine}";
-                    MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA));
+                    MorreuNaMaoDo(_monstroAtual);
                 }
             }
 
-            AutoScroll();
+            RolarMensagensParaFim();
         }
 
         private void buttonUsarPoçao_Click(object sender, EventArgs e)
         {
             var pocao = (PocaoCura)comboBoxPoçoes.SelectedItem;
 
+            // Com a vida cheia a poção não é consumida e o turno não é gasto
+            // (o monstro não contra-ataca)
+            if (_jogador.VidaAtual >= _jogador.VidaMaximaEfetiva)
+            {
+                richTextBoxMensagens.Text += $"Sua vida já está cheia; a {pocao.Nome} não foi utilizada.{Environment.NewLine}";
+                RolarMensagensParaFim();
+                return;
+            }
+
             // Aplica cura sem exceder a vida máxima
-            _jogador.VidaAtual = Math.Min(_jogador.VidaAtual + pocao.QtdCura, _jogador.VidaMaxima);
+            _jogador.VidaAtual = Math.Min(_jogador.VidaAtual + pocao.QtdCura, _jogador.VidaMaximaEfetiva);
 
             // Remove a poção do inventário
             var itemPocao = _jogador.Inventario.FirstOrDefault(ii => ii.Detalhes.ID == pocao.ID);
@@ -306,25 +346,46 @@ namespace Aventura_RPG
 
             richTextBoxMensagens.Text += $"Você bebeu uma {pocao.Nome}{Environment.NewLine}";
 
-            // Monstro contra-ataca após o uso da poção
-            int danoAoJogador = GeradorNumeroAleatorio.NumeroEntre(0, _monstroAtual.DanoMaximo);
-            richTextBoxMensagens.Text += $"O(A) {_monstroAtual.Nome} causou a você {danoAoJogador} pontos de dano.{Environment.NewLine}";
+            // Usar a poção não consome o turno: o monstro não contra-ataca e o
+            // jogador continua com o turno disponível (pode beber outra poção ou atacar)
 
-            _jogador.VidaAtual -= danoAoJogador;
-
-            if (_jogador.VidaAtual <= 0)
-            {
-                richTextBoxMensagens.Text += $"O(A) {_monstroAtual.Nome} matou você.{Environment.NewLine}";
-                MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA));
-            }
-
-            lblVida.Text = _jogador.VidaAtual.ToString();
+            lblVida.Text = $"{_jogador.VidaAtual}/{_jogador.VidaMaximaEfetiva}";
             AtualizaListaInventarioNoMenu();
             AtualizaListaPocaoNoMenu();
-            AutoScroll();
+            AtualizaVisibilidadeCombate();
+            RolarMensagensParaFim();
         }
 
-        private void AutoScroll()
+        // Única rotina de morte: teletransporta o jogador para a casa e cobra a
+        // penalidade de ouro (perde 25% do ouro, arredondado para baixo)
+        private void MorreuNaMaoDo(Monstro monstro)
+        {
+            int ouroPerdido = _jogador.Ouro / 4;
+
+            richTextBoxMensagens.Text += $"O(A) {monstro.Nome} matou você.{Environment.NewLine}";
+            if (ouroPerdido > 0)
+                richTextBoxMensagens.Text += $"Você perdeu {ouroPerdido} de ouro por conta da derrota.{Environment.NewLine}";
+
+            _jogador.Ouro -= ouroPerdido;
+            _monstroAtual = null;
+
+            MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA));
+        }
+
+        // Única fonte de visibilidade dos controles de combate:
+        // eles só aparecem quando há monstro vivo E o jogador tem o item no inventário.
+        private void AtualizaVisibilidadeCombate()
+        {
+            bool temArma  = _jogador.Inventario.Any(ii => ii.Detalhes is Arma && ii.Quantidade > 0);
+            bool temPocao = _jogador.Inventario.Any(ii => ii.Detalhes is PocaoCura && ii.Quantidade > 0);
+
+            comboBoxArmas.Visible    = _monstroAtual != null && temArma;
+            buttonUsarArma.Visible   = _monstroAtual != null && temArma;
+            comboBoxPoçoes.Visible   = _monstroAtual != null && temPocao;
+            buttonUsarPoçao.Visible  = _monstroAtual != null && temPocao;
+        }
+
+        private void RolarMensagensParaFim()
         {
             richTextBoxMensagens.SelectionStart = richTextBoxMensagens.Text.Length;
             richTextBoxMensagens.ScrollToCaret();

@@ -12,9 +12,15 @@ namespace Motor
         // Para desativar a subida de level, substitua pela propriedade manual: public int Level { get; set; }
         public int Level => (PontosExperiencia / 100) + 1;
 
+        // Vida máxima ajustada pelo level: +2 de vida por level acima de 1
+        // (o bônus de dano de +1 por level é aplicado no combate, no form)
+        public int VidaMaximaEfetiva => VidaMaxima + (Level - 1) * 2;
+
         public Local LocalAtual { get; set; }
         public List<InventarioItem> Inventario { get; set; }
         public List<JogadorQuest> Quests { get; set; }
+        // Marca se a recompensa do Porrete (concluir as duas quests) já foi entregue
+        public bool RecebeuRecompensaPorrete { get; set; }
 
         public Jogador(int vidaAtual, int vidaMaxima, int ouro, int pontosExperiencia)
             : base(vidaAtual, vidaMaxima)
@@ -23,6 +29,7 @@ namespace Motor
             PontosExperiencia = pontosExperiencia;
             Inventario = new List<InventarioItem>();
             Quests = new List<JogadorQuest>();
+            RecebeuRecompensaPorrete = false;
         }
 
         public bool TemItemNecessarioParaEntrarNesteLocal(Local local)
@@ -32,7 +39,7 @@ namespace Motor
                 return true;
 
             // Verifica se o jogador tem o item necessário no inventário
-            return Inventario.Any(ii => ii.Detalhes.ID == local.ItemNecessarioEntrar.ID);
+            return Inventario.Any(ii => ii.Detalhes.ID == local.ItemNecessarioEntrar.ID && ii.Quantidade > 0);
         }
 
         public bool TemEstaQuest(Quest quest)

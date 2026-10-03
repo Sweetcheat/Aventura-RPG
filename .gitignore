@@ -1,0 +1,18 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build
+bin/
+obj/
+
+# Visual Studio migration leftovers
+UpgradeLog.htm
+
+# Local backups
+Backup/
+
+# Temporary files
+*.tmp
+*.log

@@ -17,6 +17,9 @@ namespace Motor
         // Random.Next(min, max) é exclusivo no max, então sem o +1 o dano máximo nunca seria atingido.
         public static int NumeroEntre(int valorMinimo, int valorMaximo)
         {
+            if (valorMinimo > valorMaximo)
+                throw new ArgumentOutOfRangeException("valorMinimo", "O valor mínimo não pode ser maior que o valor máximo.");
+
             return _gerador.Next(valorMinimo, valorMaximo + 1);
         }
     }
