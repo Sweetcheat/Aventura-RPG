@@ -351,6 +351,75 @@ static class Program
         Verificar(msgsSemMonstro.Count == 0, "sem monstro em combate o ataque do monstro não faz nada");
     }
 
+    static void RegrasArmaSelecionada()
+    {
+        Cabecalho("Arma selecionada: estado da Partida, validação e uso no ataque");
+
+        var p = NovaPartida();
+        var espada  = (Arma)Mundo.ItemPorID(Mundo.ITEM_ID_ESPADA_ENFERRUJADA);
+        var porrete = (Arma)Mundo.ItemPorID(Mundo.ITEM_ID_PORRETE);
+
+        Verificar(p.ArmaSelecionada != null && p.ArmaSelecionada.ID == Mundo.ITEM_ID_ESPADA_ENFERRUJADA,
+            "arma inicial selecionada = Espada Enferrujada");
+
+        // Arma fora do inventário não pode ser selecionada
+        var msgsInvalida = p.SelecionarArma(porrete);
+        Verificar(p.ArmaSelecionada.ID == Mundo.ITEM_ID_ESPADA_ENFERRUJADA, "arma inválida (fora do inventário) não é selecionada");
+        Verificar(msgsInvalida.Count == 1 && msgsInvalida[0] == "Você não tem Porrete no inventário." + Environment.NewLine,
+            "mensagem exata do Motor para arma inválida");
+
+        // Seleção válida: o Porrete entra no inventário e é selecionado
+        p.Jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_PORRETE));
+        var msgs = p.SelecionarArma(porrete);
+        Verificar(p.ArmaSelecionada.ID == Mundo.ITEM_ID_PORRETE, "seleção válida troca a arma selecionada");
+        Verificar(msgs.Count == 1 && msgs[0] == "Você equipou o(a) Porrete." + Environment.NewLine,
+            "mensagem exata de seleção");
+        Verificar(TemItem(p, Mundo.ITEM_ID_PORRETE, 1) && TemItem(p, Mundo.ITEM_ID_ESPADA_ENFERRUJADA, 1),
+            "seleção não altera o inventário (sem duplicar armas)");
+
+        // O ataque usa a arma selecionada: o Porrete (dano mínimo 3) em vez da
+        // Espada (dano mínimo 1) — amostra de 50 golpes
+        IrParaJardim(p);
+        p.MonstroAtual.VidaAtual = 100000;
+
+        bool danoSempreNoMinimo = true;
+        for (int i = 0; i < 50; i++)
+        {
+            // O jogador pode morrer no meio da amostra (comportamento normal:
+            // Morte teleporta para a Casa). Se morreu, volta ao Jardim e recria o combate.
+            if (p.MonstroAtual == null)
+            {
+                if (p.Jogador.LocalAtual.ID != Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS)
+                    IrParaCasa(p);
+                IrParaJardim(p);
+                p.MonstroAtual.VidaAtual = 100000;
+            }
+
+            if (p.Jogador.VidaAtual < 5)
+                p.Jogador.VidaAtual = 15;    // mantém o jogador vivo na amostra
+
+            int vidaAntes = p.MonstroAtual.VidaAtual;
+            p.Atacar(p.ArmaSelecionada);
+            if (p.MonstroAtual != null && vidaAntes - p.MonstroAtual.VidaAtual < 3)
+                danoSempreNoMinimo = false;
+        }
+        Verificar(danoSempreNoMinimo, "50 ataques com o Porrete: dano sempre >= 3 (a arma selecionada é usada)");
+    }
+
+    static void RegrasPocaoSemPoção()
+    {
+        Cabecalho("Poção: sem poção no inventário");
+
+        var p = NovaPartida();
+        var pocao = (PocaoCura)Mundo.ItemPorID(Mundo.ITEM_ID_POCAO_DE_CURA);
+        p.Jogador.VidaAtual = 5;
+
+        var msgs = p.UsarPocao(pocao);
+        Verificar(p.Jogador.VidaAtual == 5, "sem poção: vida inalterada");
+        Verificar(msgs.Count == 1 && msgs[0] == "Você não tem uma Pocao de cura para usar." + Environment.NewLine,
+            "mensagem exata do Motor para uso sem poção");
+    }
+
     static int Main()
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -364,6 +433,8 @@ static class Program
         RegrasLootVazioEPoacao();
         RegrasMorte();
         RegrasAtaqueDoMonstro();
+        RegrasArmaSelecionada();
+        RegrasPocaoSemPoção();
 
         Console.WriteLine();
         Console.WriteLine(_falhas == 0 ? "TODOS OS TESTES PASSARAM" : _falhas + " TESTE(S) FALHARAM");

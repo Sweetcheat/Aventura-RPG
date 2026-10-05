@@ -30,8 +30,8 @@ public partial class Jogo : Node2D
     {
         CriaInterface();
 
-        // Mesma inicialização que o Form WinForms fazia no construtor:
-        // cria a Partida e faz o primeiro MoverPara para a Casa
+        // Inicialização da sessão: cria a Partida e faz o primeiro
+        // MoverPara para a Casa
         _partida = new Partida();
         foreach (var mensagem in _partida.MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA)))
             _mensagens.AdicionaMensagem(mensagem);
@@ -164,9 +164,10 @@ public partial class Jogo : Node2D
             AtualizaInterface();
     }
 
-    // Painéis abertos por tecla, via Input Map (project.godot:
-    // abrir_inventario = I, abrir_quests = Q; ESC é a ação embutida
-    // ui_cancel). As teclas podem ser remapeadas no editor sem tocar no código.
+    // Painéis e ações por tecla, via Input Map (project.godot:
+    // abrir_inventario = I, abrir_quests = Q, usar_pocao = R, trocar_arma = F;
+    // ESC é a ação embutida ui_cancel). As teclas podem ser remapeadas no
+    // editor sem tocar no código.
     public override void _UnhandledInput(InputEvent evento)
     {
         if (Input.IsActionJustPressed("abrir_inventario"))
@@ -177,6 +178,10 @@ public partial class Jogo : Node2D
             FechaPainelAberto();
         else if (Input.IsActionJustPressed("atacar"))
             AtacarInimigo();
+        else if (Input.IsActionJustPressed("usar_pocao"))
+            UsarPocao();
+        else if (Input.IsActionJustPressed("trocar_arma"))
+            TrocarArma();
     }
 
     // Abre/fecha o painel pedido (ao abrir, fecha o outro, se estiver aberto).
@@ -247,14 +252,15 @@ public partial class Jogo : Node2D
 
     // Ataque corpo a corpo: o Godot só decide se o jogador está ao alcance do
     // inimigo; todas as regras (dano, crítico, morte, XP, ouro, loot) são do
-    // Motor (Partida.AtaqueDoJogador). IsActionJustPressed já limita a um
-    // golpe por pressionada — sem cooldown extra.
+    // Motor (Partida.AtaqueDoJogador), que recebe a arma selecionada
+    // (Partida.ArmaSelecionada). IsActionJustPressed já limita a um golpe por
+    // pressionada — sem cooldown extra.
     private void AtacarInimigo()
     {
         if (_areaAtiva?.Inimigo == null)
             return;
 
-        var arma = ObtemArmaAtual();
+        var arma = _partida.ArmaSelecionada;
         if (arma == null)
             return;
 
@@ -268,21 +274,47 @@ public partial class Jogo : Node2D
         AtualizaInterface();
     }
 
-    // A arma em uso: a primeira Arma do inventário (o protótipo sempre tem a
-    // espada; a escolha de arma entra em uma fase posterior)
-    private Arma ObtemArmaAtual()
+    // Usa uma poção de cura: as regras (cura, teto na vida máxima, consumo,
+    // vida cheia, sem poção) são todas do Motor (Partida.UsarPocao).
+    // Usar a poção não consome turno: o monstro não contra-ataca.
+    private void UsarPocao()
     {
-        foreach (var ii in _partida.Jogador.Inventario)
-            if (ii.Detalhes is Arma arma && ii.Quantidade > 0)
-                return arma;
+        var pocao = Mundo.ItemPorID(Mundo.ITEM_ID_POCAO_DE_CURA) as PocaoCura;
+        if (pocao == null)
+            return;
 
-        return null;
+        foreach (var mensagem in _partida.UsarPocao(pocao))
+            _mensagens.AdicionaMensagem(mensagem);
+
+        AtualizaInterface();
+    }
+
+    // Troca a arma selecionada: cicla pelas armas do inventário do jogador.
+    // A validação (arma no inventário) e o estado da seleção são do Motor
+    // (Partida.SelecionarArma / Partida.ArmaSelecionada).
+    private void TrocarArma()
+    {
+        var armas = _partida.Jogador.Inventario
+            .Where(ii => ii.Detalhes is Arma && ii.Quantidade > 0)
+            .Select(ii => (Arma)ii.Detalhes)
+            .ToList();
+
+        if (armas.Count == 0)
+            return;
+
+        int indiceAtual = armas.IndexOf(_partida.ArmaSelecionada);
+        var proxima = armas[(indiceAtual + 1) % armas.Count];
+
+        foreach (var mensagem in _partida.SelecionarArma(proxima))
+            _mensagens.AdicionaMensagem(mensagem);
+
+        AtualizaInterface();
     }
 
     private void AtualizaInterface()
     {
         var jogador = _partida.Jogador;
-        _hud.Atualizar(jogador);
+        _hud.Atualizar(_partida);
         AtualizaBloqueioMovimento();
         TrocaArea();
 
@@ -353,6 +385,7 @@ public partial class Jogo : Node2D
         Verificar(InputMap.HasAction("abrir_inventario") && InputMap.HasAction("abrir_quests")
                 && InputMap.HasAction("interagir")
                 && InputMap.HasAction("atacar")
+                && InputMap.HasAction("usar_pocao") && InputMap.HasAction("trocar_arma")
                 && InputMap.HasAction("mover_cima") && InputMap.HasAction("mover_baixo")
                 && InputMap.HasAction("mover_esquerda") && InputMap.HasAction("mover_direita"),
             "Input Map: todas as ações existem");
@@ -360,6 +393,8 @@ public partial class Jogo : Node2D
         Verificar(ConteemTecla("abrir_quests", Key.Q), "tecla Q mapeada para abrir_quests");
         Verificar(ConteemTecla("interagir", Key.E), "tecla E mapeada para interagir");
         Verificar(ConteemTecla("atacar", Key.Space), "tecla Espaço mapeada para atacar");
+        Verificar(ConteemTecla("usar_pocao", Key.R), "tecla R mapeada para usar_pocao");
+        Verificar(ConteemTecla("trocar_arma", Key.F), "tecla F mapeada para trocar_arma");
         Verificar(ConteemTecla("mover_cima", Key.W) && ConteemTecla("mover_cima", Key.Up), "mover_cima mapeia W + seta cima");
         Verificar(ConteemTecla("mover_baixo", Key.S) && ConteemTecla("mover_baixo", Key.Down), "mover_baixo mapeia S + seta baixo");
         Verificar(ConteemTecla("mover_esquerda", Key.A) && ConteemTecla("mover_esquerda", Key.Left), "mover_esquerda mapeia A + seta esquerda");
@@ -927,6 +962,104 @@ public partial class Jogo : Node2D
         // O mapa continua funcionando após o respawn
         MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS));
         Verificar(_areaAtiva is AreaCabana, "F11: mapa continua funcionando (Praça -> Cabana)");
+
+        // ---- Fase 12: poção de cura e seleção de arma (regras do Motor) ----
+
+        // Estado inicial: a espada do inventário já vem selecionada (Partida)
+        Verificar(_partida.ArmaSelecionada != null
+                && _partida.ArmaSelecionada.ID == Mundo.ITEM_ID_ESPADA_ENFERRUJADA,
+            "F12: arma inicial selecionada = Espada Enferrujada (estado da Partida)");
+        Verificar(_hud.TextoArma.Contains("Espada Enferrujada"), "F12: HUD mostra a arma selecionada");
+        Verificar(_hud.TextoPocoes.Contains("Poções: 1"), "F12: HUD mostra a quantidade de poções (1 da quest)");
+
+        // Arma fora do inventário não pode ser selecionada (regra do Motor)
+        var porrete = (Arma)Mundo.ItemPorID(Mundo.ITEM_ID_PORRETE);
+        foreach (var mensagem in _partida.SelecionarArma(porrete))
+            _mensagens.AdicionaMensagem(mensagem);
+        Verificar(_partida.ArmaSelecionada.ID == Mundo.ITEM_ID_ESPADA_ENFERRUJADA,
+            "F12: arma inválida (fora do inventário) não é selecionada (Motor)");
+        Verificar(_mensagens.Texto.Contains("não tem Porrete no inventário"),
+            "F12: mensagem do Motor para arma inválida");
+
+        // Seleção: o Porrete entra no inventário e a tecla F (trocar_arma) o seleciona
+        jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_PORRETE));
+        TrocarArma();
+        Verificar(_partida.ArmaSelecionada != null && _partida.ArmaSelecionada.ID == Mundo.ITEM_ID_PORRETE,
+            "F12: trocar_arma seleciona o Porrete (Motor)");
+        Verificar(_hud.TextoArma.Contains("Porrete"), "F12: HUD reflete a nova arma selecionada");
+        Verificar(jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_PORRETE && ii.Quantidade == 1)
+                && jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_ESPADA_ENFERRUJADA && ii.Quantidade == 1),
+            "F12: seleção não altera o inventário (sem duplicar armas)");
+
+        // Combate no Jardim: o ataque usa a arma selecionada (Porrete, dano mínimo 3)
+        MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS));
+        await Frames(3);
+        Verificar(_partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_RATO,
+            "F12: Rato do Jardim recriado pelo Motor");
+
+        // Manipulação de teste: HP alto do jogador e monstro que não morre na amostra
+        _partida.Jogador.VidaAtual = 200;
+        _partida.MonstroAtual.VidaAtual = 100000;
+        _areaAtiva.Jogador.Position = _areaAtiva.Inimigo.Position + new Vector2(-40f, 0f);
+        await Frames(3);
+
+        int golpesF12 = 0;
+        bool danoSempreNoMinimo = true;
+        for (int i = 0; i < 50; i++)
+        {
+            int vidaAntes = _partida.MonstroAtual.VidaAtual;
+            AtacarInimigo();
+            golpesF12++;
+            if (_partida.MonstroAtual.VidaAtual < vidaAntes && vidaAntes - _partida.MonstroAtual.VidaAtual < 3)
+                danoSempreNoMinimo = false;
+        }
+        Verificar(golpesF12 == 50, "F12: 50 ataques executados no combate");
+        Verificar(danoSempreNoMinimo, "F12: dano sempre >= 3 => o ataque usa a arma selecionada (Porrete)");
+
+        // Poção durante o combate: cura e consome; o combate continua (sem perda de turno)
+        _partida.Jogador.VidaAtual = 5;
+        int pocoesAntesF12 = jogador.Inventario.FirstOrDefault(ii => ii.Detalhes.ID == Mundo.ITEM_ID_POCAO_DE_CURA)?.Quantidade ?? 0;
+        UsarPocao();
+        Verificar(_partida.Jogador.VidaAtual == 10, "F12: poção durante o combate cura (5 + 5 = 10)");
+        Verificar((jogador.Inventario.FirstOrDefault(ii => ii.Detalhes.ID == Mundo.ITEM_ID_POCAO_DE_CURA)?.Quantidade ?? 0) == pocoesAntesF12 - 1,
+            "F12: poção consumida pelo Motor");
+        Verificar(_partida.MonstroAtual != null, "F12: usar a poção não encerra o combate (sem perda de turno)");
+        Verificar(_hud.TextoVida.Contains($"HP: 10/"), "F12: HUD reflete a cura");
+
+        // Derrota do monstro com a arma selecionada: XP, ouro e loot do Motor
+        _partida.MonstroAtual.VidaAtual = 1;
+        _partida.MonstroAtual.LootTable.Clear();
+        _partida.MonstroAtual.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
+        int xpAntesF12 = _partida.Jogador.PontosExperiencia;
+        int ouroAntesF12 = _partida.Jogador.Ouro;
+        AtacarInimigo();
+        Verificar(_partida.MonstroAtual == null, "F12: o ataque com a arma selecionada derrota o monstro");
+        Verificar(_partida.Jogador.PontosExperiencia == xpAntesF12 + 3 && _partida.Jogador.Ouro == ouroAntesF12 + 10,
+            "F12: XP (3) e ouro (10) da morte creditados pelo Motor");
+
+        // Sem poção: o Motor trata (sem cura, com mensagem)
+        int vidaSemPocao = _partida.Jogador.VidaAtual;
+        UsarPocao();
+        Verificar(_partida.Jogador.VidaAtual == vidaSemPocao, "F12: sem poção o Motor não cura");
+        Verificar(_mensagens.Texto.Contains("não tem uma Pocao de cura para usar"),
+            "F12: mensagem do Motor para uso sem poção");
+
+        // Vida cheia: a poção não é consumida (regra existente do Motor)
+        jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_POCAO_DE_CURA));
+        _partida.Jogador.VidaAtual = _partida.Jogador.VidaMaximaEfetiva;
+        UsarPocao();
+        Verificar(_partida.Jogador.VidaAtual == _partida.Jogador.VidaMaximaEfetiva,
+            "F12: vida cheia => poção não utilizada");
+        Verificar(jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_POCAO_DE_CURA && ii.Quantidade > 0),
+            "F12: poção não consumida com vida cheia");
+
+        // Teto: a cura não excede a vida máxima
+        _partida.Jogador.VidaAtual = 12;
+        UsarPocao();
+        Verificar(_partida.Jogador.VidaAtual == _partida.Jogador.VidaMaximaEfetiva,
+            "F12: cura não excede a vida máxima (12 + 5 => 15)");
+        Verificar(_hud.TextoPocoes.Contains("Poções: 0"), "F12: HUD mostra 0 poções ao final");
+        Verificar(_hud.TextoArma.Contains("Porrete"), "F12: HUD continua mostrando a arma selecionada (Porrete)");
 
         GD.Print(falhas == 0 ? "[AutoTeste] TODOS OS CHECKS OK" : $"[AutoTeste] {falhas} CHECK(S) FALHARAM");
 

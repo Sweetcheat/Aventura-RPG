@@ -6,8 +6,8 @@ namespace Motor
 {
     /*  Sessão de jogo: detém o estado (jogador + monstro atual) e concentra as
         regras de movimentação, combate, poção e morte/respawn.
-        A camada de apresentação (hoje o form WinForms, no futuro o Godot)
-        chama os métodos e exibe as mensagens retornadas. */
+        A camada de apresentação (o projeto Godot) chama os métodos e exibe
+        as mensagens retornadas. */
     public class Partida
     {
         // Chance (em 100) de evento de combate: crítico do jogador (dano x2) ou falha do monstro (dano zero)
@@ -16,12 +16,17 @@ namespace Motor
         public Jogador Jogador { get; private set; }
         public Monstro MonstroAtual { get; private set; }
 
+        // A arma atualmente em uso pelo jogador (Fase 12): estado da Partida,
+        // não do inventário — selecionar não altera quantidades nem duplica itens
+        public Arma ArmaSelecionada { get; private set; }
+
         public Partida()
         {
             Jogador = new Jogador(15, 15, 0, 0);
             // A espada inicial é adicionada antes do primeiro MoverPara, para que
             // o inventário já apareça com ela ao iniciar o jogo
             Jogador.Inventario.Add(new InventarioItem(Mundo.ItemPorID(Mundo.ITEM_ID_ESPADA_ENFERRUJADA), 1));
+            ArmaSelecionada = (Arma)Mundo.ItemPorID(Mundo.ITEM_ID_ESPADA_ENFERRUJADA);
         }
 
         /*  Move o jogador para um novo local: gate de entrada, cura na Casa, quests,
@@ -251,7 +256,29 @@ namespace Motor
             return mensagens;
         }
 
-        /*  Usa uma poção de cura: com a vida cheia a poção não é consumida.
+        /*  Seleciona a arma em uso pelo jogador. A arma precisa estar no
+            inventário (quantidade > 0); senão a seleção é recusada.
+            Selecionar não altera o inventário: a arma continua onde estava. */
+        public List<string> SelecionarArma(Arma arma)
+        {
+            var mensagens = new List<string>();
+
+            var itemArma = Jogador.Inventario.FirstOrDefault(ii => ii.Detalhes.ID == arma.ID && ii.Detalhes is Arma);
+
+            if (itemArma == null || itemArma.Quantidade <= 0)
+            {
+                mensagens.Add($"Você não tem {arma.Nome} no inventário.{Environment.NewLine}");
+                return mensagens;
+            }
+
+            ArmaSelecionada = (Arma)itemArma.Detalhes;
+            mensagens.Add($"Você equipou o(a) {arma.Nome}.{Environment.NewLine}");
+
+            return mensagens;
+        }
+
+        /*  Usa uma poção de cura: sem poção no inventário nada acontece e,
+            com a vida cheia, a poção não é consumida.
             Usar a poção não consome o turno: o monstro não contra-ataca. */
         public List<string> UsarPocao(PocaoCura pocao)
         {
@@ -265,13 +292,19 @@ namespace Motor
                 return mensagens;
             }
 
+            // Sem poção no inventário: nada acontece
+            var itemPocao = Jogador.Inventario.FirstOrDefault(ii => ii.Detalhes.ID == pocao.ID);
+            if (itemPocao == null || itemPocao.Quantidade <= 0)
+            {
+                mensagens.Add($"Você não tem uma {pocao.Nome} para usar.{Environment.NewLine}");
+                return mensagens;
+            }
+
             // Aplica cura sem exceder a vida máxima
             Jogador.VidaAtual = Math.Min(Jogador.VidaAtual + pocao.QtdCura, Jogador.VidaMaximaEfetiva);
 
             // Remove a poção do inventário
-            var itemPocao = Jogador.Inventario.FirstOrDefault(ii => ii.Detalhes.ID == pocao.ID);
-            if (itemPocao != null)
-                itemPocao.Quantidade--;
+            itemPocao.Quantidade--;
 
             mensagens.Add($"Você bebeu uma {pocao.Nome}{Environment.NewLine}");
 
