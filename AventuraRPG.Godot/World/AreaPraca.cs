@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Motor;
 
@@ -18,7 +19,10 @@ public partial class AreaPraca : AreaLocal
     protected override Vector2 PosicaoSpawn => new Vector2(TamanhoArea.X / 2, 300f);
 
     // O Rato da Praça fica ao lado da fonte, ao alcance do jogador
-    protected override Vector2? PosicaoInimigo => new Vector2(550, 450);
+    protected override List<Vector2> PosicoesInimigos => new List<Vector2>
+    {
+        new Vector2(550, 450),
+    };
 
     protected override void CriaCenario()
     {

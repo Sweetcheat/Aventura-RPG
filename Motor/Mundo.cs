@@ -116,16 +116,16 @@ namespace Motor
 
         private static void ColoqueLocais()
         {
-            // Cria cada local
+            // Cria cada local (o Jardim tem 3 Ratos: múltiplos monstros por local)
             var casa              = new Local(LOCAL_ID_CASA,                   "Casa",                  "Esta é a sua casa.",                                                  null,                              null,                                         null);
-            var praca             = new Local(LOCAL_ID_PRACA,                  "Praça",                 "Você vê uma fonte grande.",                                           null,                              null,                                         MonstroPorID(MONSTRO_ID_RATO));
+            var praca             = new Local(LOCAL_ID_PRACA,                  "Praça",                 "Você vê uma fonte grande.",                                           null,                              null,                                         new List<Monstro> { MonstroPorID(MONSTRO_ID_RATO) });
             var cabanaAlquimistas = new Local(LOCAL_ID_CABANA_DOS_ALQUIMISTAS, "Cabana dos Alquimistas","Há várias plantas esquisitas nas prateleiras.",                       null,                              QuestPorID(QUEST_ID_LIMPAR_JARDIM_DOS_ALQUIMISTAS), null);
-            var jardimAlquimistas = new Local(LOCAL_ID_JARDIM_DOS_ALQUIMISTAS, "Jardim dos Alquimistas","Várias plantas estão crescendo aqui.",                                null,                              null,                                         MonstroPorID(MONSTRO_ID_RATO));
+            var jardimAlquimistas = new Local(LOCAL_ID_JARDIM_DOS_ALQUIMISTAS, "Jardim dos Alquimistas","Várias plantas estão crescendo aqui.",                                null,                              null,                                         new List<Monstro> { MonstroPorID(MONSTRO_ID_RATO), MonstroPorID(MONSTRO_ID_RATO), MonstroPorID(MONSTRO_ID_RATO) });
             var casaFazenda       = new Local(LOCAL_ID_CASA_DA_FAZENDA,        "Casa de Fazenda",       "Há uma pequena casa de fazenda aqui, com um fazendeiro na frente.",   null,                              QuestPorID(QUEST_ID_LIMPAR_AREA_DOS_CAMPONESES),    null);
-            var areaCamponeses    = new Local(LOCAL_ID_AREA_DOS_CAMPONESES,    "Area dos Camponeses",   "Você vê vegetais crescendo aqui.",                                    null,                              null,                                         MonstroPorID(MONSTRO_ID_COBRA));
+            var areaCamponeses    = new Local(LOCAL_ID_AREA_DOS_CAMPONESES,    "Area dos Camponeses",   "Você vê vegetais crescendo aqui.",                                    null,                              null,                                         new List<Monstro> { MonstroPorID(MONSTRO_ID_COBRA) });
             var postoGuarda       = new Local(LOCAL_ID_POSTO_DE_GUARDA,        "Posto de Guarda",       "Há um grande e forte guarda aqui.",                                   ItemPorID(ITEM_ID_PASSE_AVENTUREIRO), null,                                      null);
             var ponte             = new Local(LOCAL_ID_PONTE,                  "Ponte",                 "Uma ponte de pedra que cruza um rio grande.",                         null,                              null,                                         null);
-            var campoAranha       = new Local(LOCAL_ID_CAMPO_DAS_ARANHAS,      "Floresta",              "Você vê teias de aranha cobrindo as árvores.",                        null,                              null,                                         MonstroPorID(MONSTRO_ID_ARANHA_GIGANTE));
+            var campoAranha       = new Local(LOCAL_ID_CAMPO_DAS_ARANHAS,      "Floresta",              "Você vê teias de aranha cobrindo as árvores.",                        null,                              null,                                         new List<Monstro> { MonstroPorID(MONSTRO_ID_ARANHA_GIGANTE) });
 
             // Liga os locais pelo mapa (desenhado à mão para não errar as conexões)
             casa.LocalParaNorte              = praca;

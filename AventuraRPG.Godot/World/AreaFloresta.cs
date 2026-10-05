@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Motor;
 
@@ -17,8 +18,11 @@ public partial class AreaFloresta : AreaLocal
 
     protected override Vector2 PosicaoSpawn => new Vector2(TamanhoArea.X / 2, TamanhoArea.Y / 2);
 
-    // A Aranha gigante (MonstroAtual do Motor) fica no meio da mata, longe da porta
-    protected override Vector2? PosicaoInimigo => new Vector2(500, 300);
+    // A Aranha gigante (MonstrosVivosAqui do Motor) fica no meio da mata, longe da porta
+    protected override List<Vector2> PosicoesInimigos => new List<Vector2>
+    {
+        new Vector2(500, 300),
+    };
 
     protected override void CriaCenario()
     {

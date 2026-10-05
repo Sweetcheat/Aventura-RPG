@@ -14,7 +14,10 @@ namespace Motor
         private const int CHANCE_EVENTO_COMBATE = 10;
 
         public Jogador Jogador { get; private set; }
-        public Monstro MonstroAtual { get; private set; }
+
+        // Monstros vivos do local atual (Fase 13): recriados a cada mudança de
+        // local a partir dos templates do Mundo; um local pode ter mais de um
+        public List<Monstro> MonstrosAtuais { get; private set; }
 
         // A arma atualmente em uso pelo jogador (Fase 12): estado da Partida,
         // não do inventário — selecionar não altera quantidades nem duplica itens
@@ -27,6 +30,7 @@ namespace Motor
             // o inventário já apareça com ela ao iniciar o jogo
             Jogador.Inventario.Add(new InventarioItem(Mundo.ItemPorID(Mundo.ITEM_ID_ESPADA_ENFERRUJADA), 1));
             ArmaSelecionada = (Arma)Mundo.ItemPorID(Mundo.ITEM_ID_ESPADA_ENFERRUJADA);
+            MonstrosAtuais = new List<Monstro>();
         }
 
         /*  Move o jogador para um novo local: gate de entrada, cura na Casa, quests,
@@ -117,44 +121,44 @@ namespace Motor
                 Jogador.RecebeuRecompensaPorrete = true;
             }
 
-            // Lógica de monstro do local: o monstro é recriado apenas quando o jogador
+            // Lógica de monstros do local: são recriados apenas quando o jogador
             // realmente muda de local (sai e volta), evitando o respawn instantâneo
             // logo após a derrota.
             if (mudouDeLocal)
             {
-                if (novoLocal.MonstroVivoAqui != null)
+                MonstrosAtuais.Clear();
+
+                foreach (var monstroNormal in novoLocal.MonstrosVivosAqui)
                 {
-                    mensagens.Add($"Você vê um(a) {novoLocal.MonstroVivoAqui.Nome}{Environment.NewLine}");
+                    mensagens.Add($"Você vê um(a) {monstroNormal.Nome}{Environment.NewLine}");
 
                     // Instancia um novo monstro a partir dos dados padrão do Mundo
-                    var monstroNormal = Mundo.MonstroPorID(novoLocal.MonstroVivoAqui.ID);
-                    MonstroAtual = new Monstro(
+                    var monstroVivo = new Monstro(
                         monstroNormal.ID, monstroNormal.Nome, monstroNormal.DanoMaximo,
                         monstroNormal.PontosExperienciaRecompensa, monstroNormal.OuroRecompensa,
                         monstroNormal.VidaAtual, monstroNormal.VidaMaxima);
 
                     foreach (var itemLoot in monstroNormal.LootTable)
-                        MonstroAtual.LootTable.Add(itemLoot);
-                }
-                else
-                {
-                    MonstroAtual = null;
+                        monstroVivo.LootTable.Add(itemLoot);
+
+                    MonstrosAtuais.Add(monstroVivo);
                 }
             }
 
             return mensagens;
         }
 
-        /*  Ataque do jogador: dano (mínimo 1 + bônus de level), crítico e morte
-            do monstro (XP, ouro e loot com garantia do item comum).
-            O monstro não contra-ataca: esta é a parte do turno que pertence ao
-            jogador (também usada pelo combate espacial).
-            Sem monstro em combate, não faz nada. */
-        public List<string> AtaqueDoJogador(Arma armaAtual)
+        /*  Ataque do jogador contra um monstro específico: dano (mínimo 1 +
+            bônus de level), crítico e morte do monstro (XP, ouro e loot com
+            garantia do item comum). O monstro não contra-ataca: esta é a parte
+            do turno que pertence ao jogador (também usada pelo combate
+            espacial). O alvo precisa estar em combate (MonstrosAtuais);
+            sem alvo válido, não faz nada. */
+        public List<string> AtaqueDoJogador(Arma armaAtual, Monstro alvo)
         {
             var mensagens = new List<string>();
 
-            if (MonstroAtual == null)
+            if (alvo == null || !MonstrosAtuais.Contains(alvo))
                 return mensagens;
 
             // Bônus de level (a partir do level 2): +1 de dano, aplicado antes do crítico
@@ -166,22 +170,22 @@ namespace Motor
             if (critico)
                 danoAoMonstro *= 2;
 
-            MonstroAtual.VidaAtual -= danoAoMonstro;
-            mensagens.Add($"Você acertou o(a) {MonstroAtual.Nome} e causou {danoAoMonstro} ponto(s) de dano{(critico ? " (CRÍTICO!)" : "")}.{Environment.NewLine}");
+            alvo.VidaAtual -= danoAoMonstro;
+            mensagens.Add($"Você acertou o(a) {alvo.Nome} e causou {danoAoMonstro} ponto(s) de dano{(critico ? " (CRÍTICO!)" : "")}.{Environment.NewLine}");
 
-            if (MonstroAtual.VidaAtual <= 0)
+            if (alvo.VidaAtual <= 0)
             {
                 mensagens.Add(Environment.NewLine);
-                mensagens.Add($"Você derrotou o(a) {MonstroAtual.Nome}{Environment.NewLine}");
+                mensagens.Add($"Você derrotou o(a) {alvo.Nome}{Environment.NewLine}");
 
-                GanhaExperiencia(MonstroAtual.PontosExperienciaRecompensa, mensagens);
-                mensagens.Add($"Você recebe {MonstroAtual.PontosExperienciaRecompensa} pontos de experiência.{Environment.NewLine}");
+                GanhaExperiencia(alvo.PontosExperienciaRecompensa, mensagens);
+                mensagens.Add($"Você recebe {alvo.PontosExperienciaRecompensa} pontos de experiência.{Environment.NewLine}");
 
-                Jogador.Ouro             += MonstroAtual.OuroRecompensa;
-                mensagens.Add($"Você recebe {MonstroAtual.OuroRecompensa} de ouro.{Environment.NewLine}");
+                Jogador.Ouro             += alvo.OuroRecompensa;
+                mensagens.Add($"Você recebe {alvo.OuroRecompensa} de ouro.{Environment.NewLine}");
 
                 // Sorteia o loot do monstro
-                var itensSaqueados = MonstroAtual.LootTable
+                var itensSaqueados = alvo.LootTable
                     .Where(il => GeradorNumeroAleatorio.NumeroEntre(1, 100) <= il.PorcentagemDrop)
                     .Select(il => new InventarioItem(il.Detalhes, 1))
                     .ToList();
@@ -189,7 +193,7 @@ namespace Motor
                 // Garante ao menos o item comum se nada caiu
                 if (itensSaqueados.Count == 0)
                 {
-                    itensSaqueados = MonstroAtual.LootTable
+                    itensSaqueados = alvo.LootTable
                         .Where(il => il.EItemComum)
                         .Select(il => new InventarioItem(il.Detalhes, 1))
                         .ToList();
@@ -202,55 +206,58 @@ namespace Motor
                     mensagens.Add($"Seu saque: {item.Quantidade} {nomeItem}{Environment.NewLine}");
                 }
 
-                // Encerra o combate sem reentrar em MoverPara: o monstro não ressuscita no local
-                // nem o jogador ganha cura gratuita. Ele só volta se o jogador
-                // sair e voltar a este local.
-                MonstroAtual = null;
+                // Encerra o combate deste monstro: ele sai da luta (os demais
+                // monstros do local continuam vivos) sem reentrar em MoverPara:
+                // não ressuscita no local nem o jogador ganha cura gratuita.
+                // Só volta se o jogador sair e voltar a este local.
+                MonstrosAtuais.Remove(alvo);
 
                 mensagens.Add(Environment.NewLine);
             }
             return mensagens;
         }
 
-        /*  Turno completo de combate por turnos: ataque do jogador seguido,
-            se o monstro sobreviver, do contra-ataque (com chance de falha).
-            Se o jogador morre, é teletransportado para a Casa. */
+        /*  Turno completo de combate por turnos: ataque do jogador ao primeiro
+            monstro vivo do local seguido, se ele sobreviver, do contra-ataque
+            (com chance de falha). Se o jogador morre, é teletransportado para
+            a Casa. */
         public List<string> Atacar(Arma armaAtual)
         {
-            var mensagens = AtaqueDoJogador(armaAtual);
+            var mensagens = AtaqueDoJogador(armaAtual, MonstrosAtuais.Count > 0 ? MonstrosAtuais[0] : null);
 
             // Monstro ainda vivo: contra-ataca (10% de chance de falha)
-            if (MonstroAtual != null)
-                mensagens.AddRange(AtaqueDoMonstro());
+            if (MonstrosAtuais.Count > 0)
+                mensagens.AddRange(AtaqueDoMonstro(MonstrosAtuais[0]));
 
             return mensagens;
         }
 
-        /*  Ataque do monstro contra o jogador (10% de falha, dano 0..DanoMaximo).
-            Usado pelo contra-ataque do combate por turnos (Atacar) e pelo
-            combate espacial (quando a apresentação avisa que o inimigo está em
-            posição de atacar). Se o jogador morre, a regra de morte é aplicada
-            (Casa, ouro, respawn). Sem monstro em combate, não faz nada. */
-        public List<string> AtaqueDoMonstro()
+        /*  Ataque de um monstro específico contra o jogador (10% de falha,
+            dano 0..DanoMaximo). Usado pelo contra-ataque do combate por turnos
+            (Atacar) e pelo combate espacial (quando a apresentação avisa que o
+            inimigo está em posição de atacar). Se o jogador morre, a regra de
+            morte é aplicada (Casa, ouro, respawn). Sem monstro em combate,
+            não faz nada. */
+        public List<string> AtaqueDoMonstro(Monstro monstro)
         {
             var mensagens = new List<string>();
 
-            if (MonstroAtual == null)
+            if (monstro == null || !MonstrosAtuais.Contains(monstro))
                 return mensagens;
 
             bool monstroFalhou = GeradorNumeroAleatorio.NumeroEntre(1, 100) <= CHANCE_EVENTO_COMBATE;
-            int danoAoJogador = monstroFalhou ? 0 : GeradorNumeroAleatorio.NumeroEntre(0, MonstroAtual.DanoMaximo);
+            int danoAoJogador = monstroFalhou ? 0 : GeradorNumeroAleatorio.NumeroEntre(0, monstro.DanoMaximo);
 
             if (monstroFalhou)
-                mensagens.Add($"O(A) {MonstroAtual.Nome} errou o ataque.{Environment.NewLine}");
+                mensagens.Add($"O(A) {monstro.Nome} errou o ataque.{Environment.NewLine}");
             else
-                mensagens.Add($"O(A) {MonstroAtual.Nome} causou a você {danoAoJogador} pontos de dano.{Environment.NewLine}");
+                mensagens.Add($"O(A) {monstro.Nome} causou a você {danoAoJogador} pontos de dano.{Environment.NewLine}");
 
             Jogador.VidaAtual -= danoAoJogador;
 
             if (Jogador.VidaAtual <= 0)
             {
-                MorreuNaMaoDo(MonstroAtual, mensagens);
+                MorreuNaMaoDo(monstro, mensagens);
             }
 
             return mensagens;
@@ -322,7 +329,7 @@ namespace Motor
                 mensagens.Add($"Você perdeu {ouroPerdido} de ouro por conta da derrota.{Environment.NewLine}");
 
             Jogador.Ouro -= ouroPerdido;
-            MonstroAtual = null;
+            MonstrosAtuais.Clear();
 
             mensagens.AddRange(MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA)));
         }

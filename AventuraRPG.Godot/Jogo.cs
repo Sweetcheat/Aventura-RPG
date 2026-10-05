@@ -129,8 +129,18 @@ public partial class Jogo : Node2D
         if (nova == null)
             return; // Local sem área 2D: mantém a área visual atual
 
+        // A área antiga (jogador e inimigos são CharacterBody2D) vai para
+        // longe e para de ser processada; o Free acontece em timer (fora do
+        // passo de física): liberar um corpo físico durante a física deixa
+        // o corpo fantasma no espaço físico e novos corpos colidem com ele
         if (_areaAtiva != null)
-            _areaAtiva.Free();
+        {
+            var antiga = _areaAtiva;
+            antiga.Visible = false;
+            antiga.Position = new Vector2(0f, -100000f);
+            antiga.ProcessMode = Node.ProcessModeEnum.Disabled;
+            GetTree().CreateTimer(1f).Timeout += antiga.Free;
+        }
 
         nova.Cria(_spawnDestino);
         _spawnDestino = null;
@@ -146,16 +156,16 @@ public partial class Jogo : Node2D
     }
 
     // O inimigo (apresentação) sinalizou que está em posição de atacar.
-    // O Godot não aplica dano: o Motor (Partida.AtaqueDoMonstro) decide
-    // dano, morte, ouro e respawn, e a interface apresenta o resultado.
-    // Se a morte trocou o Local, a atualização é adiada: o sinal sai do
-    // _PhysicsProcess do inimigo, e liberar a área no meio do próprio
-    // callback dele seria inseguro.
-    private void AoInimigoAtacou()
+    // O Godot não aplica dano: o Motor (Partida.AtaqueDoMonstro com o Monstro
+    // desse inimigo) decide dano, morte, ouro e respawn, e a interface
+    // apresenta o resultado. Se a morte trocou o Local, a atualização é
+    // adiada: o sinal sai do _PhysicsProcess do inimigo, e liberar a área no
+    // meio do próprio callback dele seria inseguro.
+    private void AoInimigoAtacou(Inimigo2D inimigo)
     {
         int localAntes = _partida.Jogador.LocalAtual.ID;
 
-        foreach (var mensagem in _partida.AtaqueDoMonstro())
+        foreach (var mensagem in _partida.AtaqueDoMonstro(inimigo.Monstro))
             _mensagens.AdicionaMensagem(mensagem);
 
         if (_partida.Jogador.LocalAtual.ID != localAntes)
@@ -250,25 +260,39 @@ public partial class Jogo : Node2D
         AtualizaInterface();
     }
 
-    // Ataque corpo a corpo: o Godot só decide se o jogador está ao alcance do
-    // inimigo; todas as regras (dano, crítico, morte, XP, ouro, loot) são do
-    // Motor (Partida.AtaqueDoJogador), que recebe a arma selecionada
-    // (Partida.ArmaSelecionada). IsActionJustPressed já limita a um golpe por
-    // pressionada — sem cooldown extra.
+    // Ataque corpo a corpo: o Godot só decide o alvo (o inimigo mais próximo
+    // dentro do alcance); todas as regras (dano, crítico, morte, XP, ouro,
+    // loot) são do Motor (Partida.AtaqueDoJogador), que recebe a arma
+    // selecionada (Partida.ArmaSelecionada) e o Monstro do alvo.
+    // IsActionJustPressed já limita a um golpe por pressionada — sem cooldown
+    // extra.
     private void AtacarInimigo()
     {
-        if (_areaAtiva?.Inimigo == null)
+        if (_areaAtiva?.Inimigos.Count == 0)
             return;
 
         var arma = _partida.ArmaSelecionada;
         if (arma == null)
             return;
 
-        // Fora do alcance: nada acontece (alcance é apresentação, não regra do Motor)
-        if (_areaAtiva.Jogador.Position.DistanceTo(_areaAtiva.Inimigo.Position) > ALCANCE_ATAQUE)
+        // Alvo: o inimigo mais próximo dentro do alcance
+        // (alcance é apresentação, não regra do Motor)
+        Inimigo2D alvo = null;
+        float distanciaMinima = ALCANCE_ATAQUE;
+        foreach (var inimigo in _areaAtiva.Inimigos)
+        {
+            float distancia = _areaAtiva.Jogador.Position.DistanceTo(inimigo.Position);
+            if (distancia <= distanciaMinima)
+            {
+                distanciaMinima = distancia;
+                alvo = inimigo;
+            }
+        }
+
+        if (alvo == null)
             return;
 
-        foreach (var mensagem in _partida.AtaqueDoJogador(arma))
+        foreach (var mensagem in _partida.AtaqueDoJogador(arma, alvo.Monstro))
             _mensagens.AdicionaMensagem(mensagem);
 
         AtualizaInterface();
@@ -323,9 +347,9 @@ public partial class Jogo : Node2D
             foreach (var saida in _areaAtiva.Saidas)
                 saida.Atualizar(jogador.LocalAtual);
 
-        // O inimigo visual reflete o MonstroAtual do Motor (aparece, perde HP
-        // ou desaparece conforme o estado real)
-        _areaAtiva?.AtualizaInimigo(_partida.MonstroAtual);
+        // Os inimigos visuais refletem os MonstrosAtuais do Motor (aparecem,
+        // perdem HP ou desaparecem conforme o estado real)
+        _areaAtiva?.AtualizaInimigos(_partida.MonstrosAtuais);
 
         // Mantém os painéis abertos sincronizados com o estado real do Motor
         if (_painelInventario.Visible)
@@ -457,19 +481,19 @@ public partial class Jogo : Node2D
         Verificar(_hud.TextoLocal.Contains("Praça"), "HUD reflete o novo Local");
         Verificar(_areaAtiva.Jogador != null && _areaAtiva.Jogador.Position.IsFinite(), "jogador aparece na Praça");
 
-        // ---- Combate espacial: o Rato da Praça (MonstroAtual do Motor) ----
+        // ---- Combate espacial: o Rato da Praça (MonstrosAtuais do Motor) ----
         // Manipulação de teste: posiciona o jogador em relação ao inimigo
         await Frames(3);
 
-        Verificar(_areaAtiva.Inimigo != null, "um inimigo existe na Praça");
-        Verificar(_partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_RATO, "MonstroAtual do Motor = Rato da Praça");
+        Verificar(_areaAtiva.Inimigos.Count == 1, "um inimigo existe na Praça");
+        Verificar(_partida.MonstrosAtuais.Count == 1 && _partida.MonstrosAtuais[0].ID == Mundo.MONSTRO_ID_RATO, "MonstrosAtuais do Motor = Rato da Praça");
 
         // Manipulação de teste: drop determinístico (100%) para o check de loot
-        _partida.MonstroAtual.LootTable.Clear();
-        _partida.MonstroAtual.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
+        _partida.MonstrosAtuais[0].LootTable.Clear();
+        _partida.MonstrosAtuais[0].LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
 
         var jogadorPraca = _areaAtiva.Jogador;
-        var inimigo = _areaAtiva.Inimigo;
+        var inimigo = _areaAtiva.Inimigos[0];
 
         // ---- Perseguição: o Rato detecta o jogador e o acompanha ----
         Verificar(jogadorPraca.Position.DistanceTo(inimigo.Position) > Inimigo2D.Percepcao,
@@ -504,30 +528,30 @@ public partial class Jogo : Node2D
                 && inimigo.Position.Y > 0f && inimigo.Position.Y < 800f,
             "Rato respeita os limites da Praça (colisão com as paredes)");
 
-        int hpAntes = _partida.MonstroAtual.VidaAtual;
+        int hpAntes = _partida.MonstrosAtuais[0].VidaAtual;
 
         // Fora do alcance: o ataque não faz nada
         jogadorPraca.Position = inimigo.Position + new Vector2(-200f, 0f);
         await Frames(3);
         AtacarInimigo();
-        Verificar(_partida.MonstroAtual.VidaAtual == hpAntes, "ataque fora do alcance não causa dano");
+        Verificar(_partida.MonstrosAtuais[0].VidaAtual == hpAntes, "ataque fora do alcance não causa dano");
 
         // No alcance: o Motor aplica o dano
         jogadorPraca.Position = inimigo.Position + new Vector2(-40f, 0f);
         await Frames(3);
         AtacarInimigo();
-        Verificar(_partida.MonstroAtual == null || _partida.MonstroAtual.VidaAtual < hpAntes, "ataque dentro do alcance causa dano");
-        Verificar(_areaAtiva.Inimigo != null || _partida.MonstroAtual == null, "HP visual acompanha o Motor (o inimigo só some se o Motor o matou)");
+        Verificar(_partida.MonstrosAtuais.Count == 0 || _partida.MonstrosAtuais[0].VidaAtual < hpAntes, "ataque dentro do alcance causa dano");
+        Verificar(_areaAtiva.Inimigos.Count > 0 || _partida.MonstrosAtuais.Count == 0, "HP visual acompanha o Motor (o inimigo só some se o Motor o matou)");
 
         // Derrota: ataca até o Motor zerar o HP
         int golpes = 0;
-        while (_partida.MonstroAtual != null && golpes < 10)
+        while (_partida.MonstrosAtuais.Count > 0 && golpes < 10)
         {
             AtacarInimigo();
             golpes++;
         }
-        Verificar(_partida.MonstroAtual == null, "inimigo morre quando o HP chega a zero (Motor)");
-        Verificar(_areaAtiva.Inimigo == null, "representação visual do inimigo é removida");
+        Verificar(_partida.MonstrosAtuais.Count == 0, "inimigo morre quando o HP chega a zero (Motor)");
+        Verificar(_areaAtiva.Inimigos.Count == 0, "representação visual do inimigo é removida");
         Verificar(jogador.PontosExperiencia == 3 && jogador.Ouro == 10, "XP (3) e ouro (10) da morte creditados pelo Motor");
         Verificar(jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_PELO_DE_RATO && ii.Quantidade > 0), "loot da morte vai para o inventário (garantia do item comum)");
         // O Rato ataca durante a perseguição acima (Fase 11): o dano é do
@@ -609,42 +633,35 @@ public partial class Jogo : Node2D
                 && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 520f) < 1f,
             "spawn contextual: jogador aparece no ponto de entrada do Jardim");
 
-        // O Rato do Jardim: o Motor o recria na entrada; a apresentação o exibe
-        Verificar(_partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_RATO,
-            "MonstroAtual do Motor = Rato do Jardim");
-        Verificar(_areaAtiva.Inimigo != null, "Rato aparece no Jardim (representação visual)");
+        // Os 3 Ratos do Jardim: o Motor os recria na entrada; a apresentação os exibe
+        Verificar(_partida.MonstrosAtuais.Count == 3 && _partida.MonstrosAtuais[0].ID == Mundo.MONSTRO_ID_RATO,
+            "MonstrosAtuais do Motor = 3 Ratos do Jardim");
+        Verificar(_areaAtiva.Inimigos.Count == 3, "3 Ratos aparecem no Jardim (representação visual)");
 
-        // Quest: derrota 3 Ratos (drop determinístico de cauda de rato) e volte à Cabana
-        for (int morte = 0; morte < 3; morte++)
+        // Quest: derrota os 3 Ratos do Jardim (drop determinístico de cauda de
+        // rato em cada um) e volte à Cabana. Manipulação de teste: HP alto para
+        // o jogador sobreviver aos 3 Ratos atacando (comportamento da Fase 11)
+        _partida.Jogador.VidaAtual = 200;
+        foreach (var monstro in _partida.MonstrosAtuais)
         {
-            if (morte > 0)
-            {
-                // Sair e voltar (Jardim -> Cabana -> Jardim) para o Motor ressuscitar o Rato
-                SaidaLocal saidaJardimVolta = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS);
-                _areaAtiva.Jogador.Position = saidaJardimVolta.Position;
-                await Frames(10);
-                saidaJardimVolta.Interagir();
-                SaidaLocal saidaCabanaVolta = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS);
-                _areaAtiva.Jogador.Position = saidaCabanaVolta.Position;
-                await Frames(10);
-                saidaCabanaVolta.Interagir();
-            }
-
-            // Drop determinístico: cauda de rato em 100% (item comum)
-            _partida.MonstroAtual.LootTable.Clear();
-            _partida.MonstroAtual.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_CAUDA_DE_RATO), 100, true));
-
-            var inimigoJardim = _areaAtiva.Inimigo;
-            _areaAtiva.Jogador.Position = inimigoJardim.Position + new Vector2(-40f, 0f);
-            await Frames(3);
-            int golpesJardim = 0;
-            while (_partida.MonstroAtual != null && golpesJardim < 10)
-            {
-                AtacarInimigo();
-                golpesJardim++;
-            }
-            Verificar(_partida.MonstroAtual == null, $"Rato {morte + 1} derrotado (Motor)");
+            monstro.LootTable.Clear();
+            monstro.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_CAUDA_DE_RATO), 100, true));
         }
+
+        var inimigoJardim = _areaAtiva.Inimigos[0];
+        _areaAtiva.Jogador.Position = inimigoJardim.Position + new Vector2(-40f, 0f);
+        await Frames(3);
+        int golpesJardim = 0;
+        while (_partida.MonstrosAtuais.Count > 0 && golpesJardim < 300)
+        {
+            AtacarInimigo();
+            golpesJardim++;
+            if (_partida.MonstrosAtuais.Count > 0)
+                await Frames(30); // os demais Ratos perseguem o jogador até o alcance
+        }
+        Verificar(_partida.MonstrosAtuais.Count == 0, "Ratos do Jardim derrotados (Motor)");
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS,
+            "jogador sobreviveu à luta (sem respawn no meio)");
 
         Verificar(_partida.Jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_CAUDA_DE_RATO && ii.Quantidade >= 3),
             "3 caudas de rato no inventário (loot do Motor)");
@@ -773,9 +790,9 @@ public partial class Jogo : Node2D
             "spawn contextual: jogador entra na Floresta pela porta oeste");
 
         // A Aranha da Floresta: o Motor a recria na entrada; a apresentação a exibe
-        Verificar(_partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_ARANHA_GIGANTE,
-            "MonstroAtual do Motor = Aranha da Floresta");
-        Verificar(_areaAtiva.Inimigo is Inimigo2D, "Aranha aparece na Floresta (representação visual Inimigo2D)");
+        Verificar(_partida.MonstrosAtuais.Count == 1 && _partida.MonstrosAtuais[0].ID == Mundo.MONSTRO_ID_ARANHA_GIGANTE,
+            "MonstrosAtuais do Motor = Aranha da Floresta");
+        Verificar(_areaAtiva.Inimigos.Count == 1 && _areaAtiva.Inimigos[0] is Inimigo2D, "Aranha aparece na Floresta (representação visual Inimigo2D)");
 
         // Floresta -> Ponte (saída oeste da Floresta)
         SaidaLocal saidaFlorestaPonte = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_PONTE);
@@ -842,9 +859,9 @@ public partial class Jogo : Node2D
             "spawn contextual: jogador entra na Area pela porta leste");
 
         // A Cobra da Area: o Motor a recria na entrada; a apresentação a exibe
-        Verificar(_partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_COBRA,
-            "MonstroAtual do Motor = Cobra da Area dos Camponeses");
-        Verificar(_areaAtiva.Inimigo is Inimigo2D, "Cobra aparece na Area dos Camponeses (representação visual Inimigo2D)");
+        Verificar(_partida.MonstrosAtuais.Count == 1 && _partida.MonstrosAtuais[0].ID == Mundo.MONSTRO_ID_COBRA,
+            "MonstrosAtuais do Motor = Cobra da Area dos Camponeses");
+        Verificar(_areaAtiva.Inimigos.Count == 1 && _areaAtiva.Inimigos[0] is Inimigo2D, "Cobra aparece na Area dos Camponeses (representação visual Inimigo2D)");
 
         // Area dos Camponeses -> Fazenda (saída leste da Area)
         SaidaLocal saidaCamponesesFazenda = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_CASA_DA_FAZENDA);
@@ -864,14 +881,14 @@ public partial class Jogo : Node2D
         MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_PRACA));
         await Frames(3);
         Verificar(_areaAtiva is AreaPraca, "F11: área visual = Praça");
-        Verificar(_areaAtiva.Inimigo != null && _partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_RATO,
+        Verificar(_areaAtiva.Inimigos.Count == 1 && _partida.MonstrosAtuais.Count == 1 && _partida.MonstrosAtuais[0].ID == Mundo.MONSTRO_ID_RATO,
             "F11: Rato recriado ao voltar à Praça (Motor)");
 
-        var inimigoF11 = _areaAtiva.Inimigo;
+        var inimigoF11 = _areaAtiva.Inimigos[0];
         var jogadorF11 = _areaAtiva.Jogador;
 
         // Manipulação de teste: dano observável e HP alto para a amostra
-        _partida.MonstroAtual.DanoMaximo = 10;
+        _partida.MonstrosAtuais[0].DanoMaximo = 10;
         _partida.Jogador.VidaAtual = 200;
 
         // O Rato detecta o jogador e o persegue até o alcance de ataque
@@ -931,7 +948,7 @@ public partial class Jogo : Node2D
         }
         await Frames(3);
         Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CASA, "F11: morte => o Motor teletransporta para a Casa");
-        Verificar(_partida.MonstroAtual == null, "F11: monstro limpo após a morte");
+        Verificar(_partida.MonstrosAtuais.Count == 0, "F11: monstro limpo após a morte");
         Verificar(_partida.Jogador.VidaAtual == _partida.Jogador.VidaMaximaEfetiva, "F11: respawn com vida cheia");
         Verificar(_partida.Jogador.Ouro == 75, "F11: morte perde 25% do ouro (100 -> 75)");
         Verificar(_areaAtiva is AreaCasa, "F11: representação visual volta para a Casa");
@@ -944,16 +961,16 @@ public partial class Jogo : Node2D
         // O combate do jogador continua funcionando após a morte (Rato da Praça)
         MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_PRACA));
         await Frames(3);
-        Verificar(_areaAtiva is AreaPraca && _areaAtiva.Inimigo != null, "F11: Rato recriado na Praça após o respawn");
-        _partida.MonstroAtual.VidaAtual = 1;
-        _partida.MonstroAtual.LootTable.Clear();
-        _partida.MonstroAtual.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
+        Verificar(_areaAtiva is AreaPraca && _areaAtiva.Inimigos.Count == 1, "F11: Rato recriado na Praça após o respawn");
+        _partida.MonstrosAtuais[0].VidaAtual = 1;
+        _partida.MonstrosAtuais[0].LootTable.Clear();
+        _partida.MonstrosAtuais[0].LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
         int xpAntesF11 = _partida.Jogador.PontosExperiencia;
         int ouroAntesF11 = _partida.Jogador.Ouro;
-        _areaAtiva.Jogador.Position = _areaAtiva.Inimigo.Position + new Vector2(-40f, 0f);
+        _areaAtiva.Jogador.Position = _areaAtiva.Inimigos[0].Position + new Vector2(-40f, 0f);
         await Frames(3);
         AtacarInimigo();
-        Verificar(_partida.MonstroAtual == null, "F11: Rato morre pelo ataque do jogador (combate da Fase 9 intacto)");
+        Verificar(_partida.MonstrosAtuais.Count == 0, "F11: Rato morre pelo ataque do jogador (combate da Fase 9 intacto)");
         Verificar(_partida.Jogador.PontosExperiencia == xpAntesF11 + 3 && _partida.Jogador.Ouro == ouroAntesF11 + 10,
             "F11: XP (3) e ouro (10) da morte creditados pelo Motor");
         Verificar(_partida.Jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_PELO_DE_RATO && ii.Quantidade > 0),
@@ -994,23 +1011,25 @@ public partial class Jogo : Node2D
         // Combate no Jardim: o ataque usa a arma selecionada (Porrete, dano mínimo 3)
         MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS));
         await Frames(3);
-        Verificar(_partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_RATO,
-            "F12: Rato do Jardim recriado pelo Motor");
+        Verificar(_partida.MonstrosAtuais.Count == 3 && _partida.MonstrosAtuais[0].ID == Mundo.MONSTRO_ID_RATO,
+            "F12: 3 Ratos do Jardim recriados pelo Motor");
 
-        // Manipulação de teste: HP alto do jogador e monstro que não morre na amostra
+        // Manipulação de teste: HP alto do jogador e o alvo da amostra não morre
         _partida.Jogador.VidaAtual = 200;
-        _partida.MonstroAtual.VidaAtual = 100000;
-        _areaAtiva.Jogador.Position = _areaAtiva.Inimigo.Position + new Vector2(-40f, 0f);
+        _partida.MonstrosAtuais[0].VidaAtual = 100000;
+        _areaAtiva.Jogador.Position = _areaAtiva.Inimigos[0].Position + new Vector2(-40f, 0f);
         await Frames(3);
 
         int golpesF12 = 0;
         bool danoSempreNoMinimo = true;
         for (int i = 0; i < 50; i++)
         {
-            int vidaAntes = _partida.MonstroAtual.VidaAtual;
+            int vidaAntes = _partida.MonstrosAtuais[0].VidaAtual;
             AtacarInimigo();
             golpesF12++;
-            if (_partida.MonstroAtual.VidaAtual < vidaAntes && vidaAntes - _partida.MonstroAtual.VidaAtual < 3)
+            if (_partida.MonstrosAtuais.Count > 0
+                    && _partida.MonstrosAtuais[0].VidaAtual < vidaAntes
+                    && vidaAntes - _partida.MonstrosAtuais[0].VidaAtual < 3)
                 danoSempreNoMinimo = false;
         }
         Verificar(golpesF12 == 50, "F12: 50 ataques executados no combate");
@@ -1023,19 +1042,31 @@ public partial class Jogo : Node2D
         Verificar(_partida.Jogador.VidaAtual == 10, "F12: poção durante o combate cura (5 + 5 = 10)");
         Verificar((jogador.Inventario.FirstOrDefault(ii => ii.Detalhes.ID == Mundo.ITEM_ID_POCAO_DE_CURA)?.Quantidade ?? 0) == pocoesAntesF12 - 1,
             "F12: poção consumida pelo Motor");
-        Verificar(_partida.MonstroAtual != null, "F12: usar a poção não encerra o combate (sem perda de turno)");
+        Verificar(_partida.MonstrosAtuais.Count > 0, "F12: usar a poção não encerra o combate (sem perda de turno)");
         Verificar(_hud.TextoVida.Contains($"HP: 10/"), "F12: HUD reflete a cura");
 
-        // Derrota do monstro com a arma selecionada: XP, ouro e loot do Motor
-        _partida.MonstroAtual.VidaAtual = 1;
-        _partida.MonstroAtual.LootTable.Clear();
-        _partida.MonstroAtual.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
+        // Derrota de um inimigo específico com a arma selecionada: o ataque
+        // derrota o monstro certo (XP, ouro e loot dele); os demais continuam
+        var alvoF12 = _partida.MonstrosAtuais[0];
+        var inimigoAlvoF12 = _areaAtiva.Inimigos.First(i => i.Monstro == alvoF12);
+        // Longe (no meio aberto do Jardim, afastados das paredes e um do
+        // outro): fora da percepção e do alcance do alvo do teste
+        Vector2[] pontosF12 = { new Vector2(200f, 200f), new Vector2(260f, 260f) };
+        int pontoF12 = 0;
+        foreach (var inimigoOutro in _areaAtiva.Inimigos.Where(i => i.Monstro != alvoF12).ToList())
+            inimigoOutro.Position = pontosF12[pontoF12++];
+        _areaAtiva.Jogador.Position = inimigoAlvoF12.Position + new Vector2(-40f, 0f);
+        await Frames(3);
+        alvoF12.VidaAtual = 1;
+        alvoF12.LootTable.Clear();
+        alvoF12.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
         int xpAntesF12 = _partida.Jogador.PontosExperiencia;
         int ouroAntesF12 = _partida.Jogador.Ouro;
         AtacarInimigo();
-        Verificar(_partida.MonstroAtual == null, "F12: o ataque com a arma selecionada derrota o monstro");
+        Verificar(!_partida.MonstrosAtuais.Contains(alvoF12), "F12: o ataque com a arma selecionada derrota o alvo específico");
+        Verificar(_partida.MonstrosAtuais.Count == 2, "F12: os demais inimigos continuam vivos");
         Verificar(_partida.Jogador.PontosExperiencia == xpAntesF12 + 3 && _partida.Jogador.Ouro == ouroAntesF12 + 10,
-            "F12: XP (3) e ouro (10) da morte creditados pelo Motor");
+            "F12: XP (3) e ouro (10) do inimigo morto creditados pelo Motor");
 
         // Sem poção: o Motor trata (sem cura, com mensagem)
         int vidaSemPocao = _partida.Jogador.VidaAtual;
@@ -1060,6 +1091,89 @@ public partial class Jogo : Node2D
             "F12: cura não excede a vida máxima (12 + 5 => 15)");
         Verificar(_hud.TextoPocoes.Contains("Poções: 0"), "F12: HUD mostra 0 poções ao final");
         Verificar(_hud.TextoArma.Contains("Porrete"), "F12: HUD continua mostrando a arma selecionada (Porrete)");
+
+        // ---- Fase 13: múltiplos inimigos por área (regras do Motor) ----
+        // O Jardim tem 3 Ratos: spawn, identidade independente, dano no alvo
+        // certo, morte de um sem afetar os demais e respawn do jogador
+
+        MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_PRACA));
+        MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS));
+        await Frames(3);
+        Verificar(_partida.MonstrosAtuais.Count == 3, "F13: o Jardim spawna 3 monstros (Motor)");
+        Verificar(_areaAtiva.Inimigos.Count == 3, "F13: 3 inimigos independentes na área (apresentação)");
+        Verificar(_areaAtiva.Inimigos.Distinct().Count() == 3
+                && _areaAtiva.Inimigos.All(i => _partida.MonstrosAtuais.Contains(i.Monstro)),
+            "F13: cada inimigo corresponde a um Monstro do Motor (identidade independente)");
+
+        // Manipulação de teste: o alvo da amostra não morre; isola os demais
+        _partida.MonstrosAtuais[0].VidaAtual = 100000;
+        _partida.MonstrosAtuais[0].LootTable.Clear();
+        _partida.MonstrosAtuais[0].LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
+        _partida.Jogador.VidaAtual = 200;
+        var alvoF13 = _partida.MonstrosAtuais[0];
+        var inimigoAlvoF13 = _areaAtiva.Inimigos.First(i => i.Monstro == alvoF13);
+        // Longe (no meio aberto do Jardim, afastados das paredes e um do
+        // outro): fora da percepção e do alcance do alvo do teste
+        Vector2[] pontosF13 = { new Vector2(200f, 200f), new Vector2(260f, 260f) };
+        int pontoF13 = 0;
+        foreach (var inimigoOutro in _areaAtiva.Inimigos.Where(i => i.Monstro != alvoF13).ToList())
+            inimigoOutro.Position = pontosF13[pontoF13++];
+        _areaAtiva.Jogador.Position = inimigoAlvoF13.Position + new Vector2(-40f, 0f);
+        await Frames(3);
+
+        // Ataque a um inimigo específico: o dano vai só para o alvo
+        int vidaAlvoAntesF13 = alvoF13.VidaAtual;
+        int vidaOutrosAntesF13 = _partida.MonstrosAtuais[1].VidaAtual;
+        AtacarInimigo();
+        Verificar(_partida.MonstrosAtuais[0].VidaAtual < vidaAlvoAntesF13, "F13: o dano é aplicado ao inimigo alvo");
+        Verificar(_partida.MonstrosAtuais[1].VidaAtual == vidaOutrosAntesF13, "F13: os demais inimigos não recebem o dano");
+
+        // Morte de um inimigo: os demais continuam vivos e a apresentação remove só o morto
+        int xpAntesF13 = jogador.PontosExperiencia;
+        int ouroAntesF13 = jogador.Ouro;
+        alvoF13.VidaAtual = 1;
+        AtacarInimigo();
+        Verificar(!_partida.MonstrosAtuais.Contains(alvoF13), "F13: inimigo derrotado sai da luta (Motor)");
+        Verificar(_partida.MonstrosAtuais.Count == 2, "F13: matar um inimigo não remove os demais");
+        Verificar(_areaAtiva.Inimigos.Count == 2, "F13: a apresentação remove só o inimigo morto");
+        Verificar(jogador.PontosExperiencia == xpAntesF13 + 3 && jogador.Ouro == ouroAntesF13 + 10,
+            "F13: XP (3) e ouro (10) do inimigo morto");
+        Verificar(jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_PELO_DE_RATO && ii.Quantidade > 0),
+            "F13: loot do inimigo morto no inventário");
+
+        // Os inimigos restantes continuam atacando, cada um com seu cooldown
+        _partida.MonstrosAtuais[0].DanoMaximo = 10; // manipulação: dano observável
+        int hpAntesF13 = jogador.VidaAtual;
+        _areaAtiva.Jogador.Position = _areaAtiva.Inimigos[0].Position + new Vector2(-40f, 0f);
+        int ciclosF13 = 0;
+        while (jogador.VidaAtual == hpAntesF13 && ciclosF13 < 10)
+        {
+            await Frames(60);
+            ciclosF13++;
+        }
+        Verificar(jogador.VidaAtual < hpAntesF13, "F13: inimigo restante ataca o jogador (cooldown próprio)");
+
+        // Morte do jogador com inimigos restantes: respawn correto, sem corromper o estado
+        jogador.VidaAtual = 1;
+        jogador.Ouro = 100;
+        int ciclosMorteF13 = 0;
+        while (jogador.LocalAtual.ID != Mundo.LOCAL_ID_CASA && ciclosMorteF13 < 20)
+        {
+            await Frames(60);
+            ciclosMorteF13++;
+        }
+        await Frames(3);
+        Verificar(jogador.LocalAtual.ID == Mundo.LOCAL_ID_CASA, "F13: morte => o Motor teletransporta para a Casa");
+        Verificar(_partida.MonstrosAtuais.Count == 0, "F13: monstros limpos após a morte do jogador");
+        Verificar(jogador.VidaAtual == jogador.VidaMaximaEfetiva, "F13: respawn com vida cheia");
+        Verificar(jogador.Ouro == 75, "F13: morte perde 25% do ouro (100 -> 75)");
+        Verificar(_areaAtiva is AreaCasa, "F13: representação visual volta para a Casa");
+
+        // O mundo continua consistente: voltar ao Jardim recria os 3 monstros
+        MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS));
+        await Frames(3);
+        Verificar(_areaAtiva is AreaJardim && _partida.MonstrosAtuais.Count == 3 && _areaAtiva.Inimigos.Count == 3,
+            "F13: o Jardim recria os 3 monstros (Motor) com 3 inimigos (apresentação)");
 
         GD.Print(falhas == 0 ? "[AutoTeste] TODOS OS CHECKS OK" : $"[AutoTeste] {falhas} CHECK(S) FALHARAM");
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using Motor;
 
@@ -16,8 +17,11 @@ public partial class AreaCamponeses : AreaLocal
 
     protected override Vector2 PosicaoSpawn => new Vector2(TamanhoArea.X / 2, TamanhoArea.Y / 2);
 
-    // A Cobra da area (MonstroAtual do Motor) fica no meio da lavoura, longe da porta
-    protected override Vector2? PosicaoInimigo => new Vector2(400, 300);
+    // A Cobra da area (MonstrosVivosAqui do Motor) fica no meio da lavoura, longe da porta
+    protected override List<Vector2> PosicoesInimigos => new List<Vector2>
+    {
+        new Vector2(400, 300),
+    };
 
     protected override void CriaCenario()
     {

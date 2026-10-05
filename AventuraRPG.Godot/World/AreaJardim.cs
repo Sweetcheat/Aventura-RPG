@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using Motor;
 
@@ -15,8 +16,14 @@ public partial class AreaJardim : AreaLocal
 
     protected override Vector2 PosicaoSpawn => new Vector2(TamanhoArea.X / 2, TamanhoArea.Y / 2);
 
-    // O Rato do Jardim (MonstroAtual do Motor) fica no meio do jardim, longe da porta
-    protected override Vector2? PosicaoInimigo => new Vector2(550, 300);
+    // Os 3 Ratos do Jardim (MonstrosVivosAqui do Motor) ficam no meio do
+    // jardim, longe da porta
+    protected override List<Vector2> PosicoesInimigos => new List<Vector2>
+    {
+        new Vector2(550, 300),
+        new Vector2(620, 340),
+        new Vector2(480, 340),
+    };
 
     protected override void CriaCenario()
     {

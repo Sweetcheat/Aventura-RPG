@@ -185,14 +185,17 @@ static class Program
         p.Jogador.Ouro = 100;
 
         IrParaJardim(p);
-        Verificar(p.MonstroAtual != null && p.MonstroAtual.ID == Mundo.MONSTRO_ID_RATO, "monstro aparece ao entrar no local (Rato)");
+        Verificar(p.MonstrosAtuais.Count == 3 && p.MonstrosAtuais[0].ID == Mundo.MONSTRO_ID_RATO,
+            "monstros aparecem ao entrar no local (3 Ratos no Jardim)");
 
-        p.MonstroAtual.VidaAtual = 1;                                             // mata em 1 golpe (dano mínimo 1)
-        p.MonstroAtual.LootTable.Clear();
-        p.MonstroAtual.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, false)); // drop garantido p/ teste determinístico
+        var alvo = p.MonstrosAtuais[0];
+        alvo.VidaAtual = 1;                                             // mata em 1 golpe (dano mínimo 1)
+        alvo.LootTable.Clear();
+        alvo.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, false)); // drop garantido p/ teste determinístico
 
         var msgs = p.Atacar(espada);
-        Verificar(p.MonstroAtual == null, "monstro derrotado (nulo após o combate)");
+        Verificar(!p.MonstrosAtuais.Contains(alvo), "monstro derrotado sai da luta");
+        Verificar(p.MonstrosAtuais.Count == 2, "os demais monstros do local continuam vivos");
         Verificar(msgs.Any(m => m.Contains("Você acertou o(a) Rato")), "mensagem de acerto");
         Verificar(msgs.Any(m => m.Contains("Você derrotou o(a) Rato")), "mensagem de derrota do monstro");
         Verificar(msgs.Any(m => m == "Você recebe 3 pontos de experiência." + Environment.NewLine), "XP do monstro (3)");
@@ -205,7 +208,8 @@ static class Program
 
         IrParaCasa(p);
         IrParaJardim(p);
-        Verificar(p.MonstroAtual != null && p.MonstroAtual.VidaAtual == 3, "monstro ressurge ao sair e voltar ao local");
+        Verificar(p.MonstrosAtuais.Count == 3 && p.MonstrosAtuais.TrueForAll(m => m.VidaAtual == 3),
+            "monstros ressurgem ao sair e voltar ao local");
     }
 
     static void RegrasCriticoEFalha()
@@ -216,19 +220,19 @@ static class Program
         var espada = (Arma)Mundo.ItemPorID(Mundo.ITEM_ID_ESPADA_ENFERRUJADA);
 
         IrParaJardim(p);
-        p.MonstroAtual.VidaAtual = 100000;   // o monstro não morre durante a amostra
+        p.MonstrosAtuais[0].VidaAtual = 100000;   // o monstro atacado não morre durante a amostra
 
         int criticos = 0, falhasMonstro = 0;
         for (int i = 0; i < 300; i++)
         {
             // O jogador pode morrer no meio da amostra (comportamento normal:
             // Morte teleporta para a Casa). Se morreu, volta ao Jardim e recria o combate.
-            if (p.MonstroAtual == null)
+            if (p.MonstrosAtuais.Count == 0)
             {
                 if (p.Jogador.LocalAtual.ID != Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS)
                     IrParaCasa(p);
                 IrParaJardim(p);
-                p.MonstroAtual.VidaAtual = 100000;
+                p.MonstrosAtuais[0].VidaAtual = 100000;
             }
 
             if (p.Jogador.VidaAtual < 5)
@@ -252,10 +256,11 @@ static class Program
         var pocao = (PocaoCura)Mundo.ItemPorID(Mundo.ITEM_ID_POCAO_DE_CURA);
 
         IrParaJardim(p);
-        p.MonstroAtual.VidaAtual = 1;
-        p.MonstroAtual.LootTable.Clear();   // sem nenhum item: nada cai
+        var alvo = p.MonstrosAtuais[0];
+        alvo.VidaAtual = 1;
+        alvo.LootTable.Clear();   // sem nenhum item: nada cai
         var msgs = p.Atacar(espada);
-        Verificar(p.MonstroAtual == null, "monstro derrotado");
+        Verificar(!p.MonstrosAtuais.Contains(alvo), "monstro derrotado");
         Verificar(!msgs.Any(m => m.Contains("Seu saque")), "loot vazio => sem saque");
 
         // Poção com vida cheia: não é consumida e o monstro não contra-ataca
@@ -286,8 +291,8 @@ static class Program
         var espada = (Arma)Mundo.ItemPorID(Mundo.ITEM_ID_ESPADA_ENFERRUJADA);
 
         IrParaJardim(p);
-        p.MonstroAtual.VidaAtual = 100000;   // o monstro não morre
-        p.MonstroAtual.DanoMaximo = 10;      // dano 0..10 contra vida 1 => morte rápida
+        p.MonstrosAtuais[0].VidaAtual = 100000;   // o monstro não morre
+        p.MonstrosAtuais[0].DanoMaximo = 10;      // dano 0..10 contra vida 1 => morte rápida
         p.Jogador.Ouro = 100;
         p.Jogador.VidaAtual = 1;
 
@@ -297,7 +302,7 @@ static class Program
 
         Verificar(p.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CASA, "morte => teletransporte para a Casa");
         Verificar(p.Jogador.VidaAtual == p.Jogador.VidaMaximaEfetiva, "respawn com vida cheia");
-        Verificar(p.MonstroAtual == null, "monstro limpo após a morte");
+        Verificar(p.MonstrosAtuais.Count == 0, "monstros limpos após a morte");
         Verificar(p.Jogador.Ouro == 75, "perde 25% do ouro (100 - 25 = 75)");
         Verificar(msgs != null && msgs.Any(m => m.Contains("matou você")), "mensagem de morte");
         Verificar(msgs != null && msgs.Any(m => m.Contains("Você perdeu 25 de ouro por conta da derrota.")), "mensagem da perda de ouro");
@@ -309,7 +314,7 @@ static class Program
 
         var p = NovaPartida();
         IrParaJardim(p);
-        p.MonstroAtual.DanoMaximo = 5;
+        p.MonstrosAtuais[0].DanoMaximo = 5;
         p.Jogador.VidaAtual = 10000;   // o jogador não morre durante a amostra
 
         int vidaInicial = p.Jogador.VidaAtual;
@@ -318,7 +323,7 @@ static class Program
         bool houveDano = false, houveFalha = false;
         for (int i = 0; i < 200; i++)
         {
-            var msgs = p.AtaqueDoMonstro();
+            var msgs = p.AtaqueDoMonstro(p.MonstrosAtuais.Count > 0 ? p.MonstrosAtuais[0] : null);
             if (msgs.Any(m => m.Contains("causou a você"))) houveDano = true;
             if (msgs.Any(m => m.Contains("errou o ataque"))) houveFalha = true;
         }
@@ -329,7 +334,8 @@ static class Program
         Verificar(houveFalha, "falha do monstro (10%) ocorre na amostra");
         Verificar(p.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS, "jogador sobrevive com HP > 0 (sem morte)");
         Verificar(p.Jogador.PontosExperiencia == xpInicial && p.Jogador.Ouro == ouroInicial, "ataque do monstro não altera XP/ouro");
-        Verificar(p.MonstroAtual != null && p.MonstroAtual.VidaAtual == 3, "ataque do monstro não altera a vida do monstro");
+        Verificar(p.MonstrosAtuais.Count == 3 && p.MonstrosAtuais.TrueForAll(m => m.VidaAtual == 3),
+            "ataque do monstro não altera a vida dos monstros");
 
         // Morte: HP 1 => o próximo acerto mata; a regra existente é aplicada
         // (Casa, perda de 25% do ouro, respawn com vida cheia)
@@ -337,17 +343,17 @@ static class Program
         p.Jogador.Ouro = 100;
         var msgsMorte = null as List<string>;
         for (int i = 0; i < 500 && p.Jogador.LocalAtual.ID != Mundo.LOCAL_ID_CASA; i++)
-            msgsMorte = p.AtaqueDoMonstro();
+            msgsMorte = p.AtaqueDoMonstro(p.MonstrosAtuais.Count > 0 ? p.MonstrosAtuais[0] : null);
 
         Verificar(p.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CASA, "morte pelo monstro => teletransporte para a Casa");
         Verificar(p.Jogador.VidaAtual == p.Jogador.VidaMaximaEfetiva, "respawn com vida cheia");
-        Verificar(p.MonstroAtual == null, "monstro limpo após a morte");
+        Verificar(p.MonstrosAtuais.Count == 0, "monstros limpos após a morte");
         Verificar(p.Jogador.Ouro == 75, "perde 25% do ouro (100 - 25 = 75)");
         Verificar(msgsMorte != null && msgsMorte.Any(m => m.Contains("matou você")), "mensagem de morte");
         Verificar(msgsMorte != null && msgsMorte.Any(m => m.Contains("Você perdeu 25 de ouro por conta da derrota.")), "mensagem da perda de ouro");
 
         // Sem monstro em combate: não faz nada
-        var msgsSemMonstro = p.AtaqueDoMonstro();
+        var msgsSemMonstro = p.AtaqueDoMonstro(null);
         Verificar(msgsSemMonstro.Count == 0, "sem monstro em combate o ataque do monstro não faz nada");
     }
 
@@ -380,30 +386,95 @@ static class Program
         // O ataque usa a arma selecionada: o Porrete (dano mínimo 3) em vez da
         // Espada (dano mínimo 1) — amostra de 50 golpes
         IrParaJardim(p);
-        p.MonstroAtual.VidaAtual = 100000;
+        p.MonstrosAtuais[0].VidaAtual = 100000;
 
         bool danoSempreNoMinimo = true;
         for (int i = 0; i < 50; i++)
         {
             // O jogador pode morrer no meio da amostra (comportamento normal:
             // Morte teleporta para a Casa). Se morreu, volta ao Jardim e recria o combate.
-            if (p.MonstroAtual == null)
+            if (p.MonstrosAtuais.Count == 0)
             {
                 if (p.Jogador.LocalAtual.ID != Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS)
                     IrParaCasa(p);
                 IrParaJardim(p);
-                p.MonstroAtual.VidaAtual = 100000;
+                p.MonstrosAtuais[0].VidaAtual = 100000;
             }
 
             if (p.Jogador.VidaAtual < 5)
                 p.Jogador.VidaAtual = 15;    // mantém o jogador vivo na amostra
 
-            int vidaAntes = p.MonstroAtual.VidaAtual;
+            int vidaAntes = p.MonstrosAtuais[0].VidaAtual;
             p.Atacar(p.ArmaSelecionada);
-            if (p.MonstroAtual != null && vidaAntes - p.MonstroAtual.VidaAtual < 3)
+            if (p.MonstrosAtuais.Count > 0 && vidaAntes - p.MonstrosAtuais[0].VidaAtual < 3)
                 danoSempreNoMinimo = false;
         }
         Verificar(danoSempreNoMinimo, "50 ataques com o Porrete: dano sempre >= 3 (a arma selecionada é usada)");
+    }
+
+    static void RegrasMultiplosMonstros()
+    {
+        Cabecalho("Múltiplos monstros: local com 3 Ratos (Jardim)");
+
+        var p = NovaPartida();
+        var espada = (Arma)Mundo.ItemPorID(Mundo.ITEM_ID_ESPADA_ENFERRUJADA);
+
+        IrParaJardim(p);
+        Verificar(p.MonstrosAtuais.Count == 3, "Jardim tem 3 monstros vivos");
+        Verificar(p.MonstrosAtuais.TrueForAll(m => m.ID == Mundo.MONSTRO_ID_RATO), "os 3 monstros são Ratos");
+        Verificar(p.MonstrosAtuais.Distinct().Count() == 3, "instâncias independentes (sem compartilhamento)");
+
+        // Derrota um monstro específico: os demais continuam vivos
+        var alvo = p.MonstrosAtuais[0];
+        alvo.VidaAtual = 1;
+        alvo.LootTable.Clear();
+        alvo.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
+        int xpAntes = p.Jogador.PontosExperiencia;
+        int ouroAntes = p.Jogador.Ouro;
+        var msgs = p.AtaqueDoJogador(espada, alvo);
+
+        Verificar(!p.MonstrosAtuais.Contains(alvo), "monstro derrotado sai da luta");
+        Verificar(p.MonstrosAtuais.Count == 2, "matar um monstro não remove os demais");
+        Verificar(p.MonstrosAtuais.TrueForAll(m => m.VidaAtual == 3), "monstros restantes não são afetados pelo golpe");
+        Verificar(msgs.Any(m => m.Contains("Você derrotou o(a) Rato")), "mensagem de derrota do monstro");
+        Verificar(p.Jogador.PontosExperiencia == xpAntes + 3 && p.Jogador.Ouro == ouroAntes + 10,
+            "XP (3) e ouro (10) do monstro morto (e não dos demais)");
+        Verificar(p.Jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_PELO_DE_RATO && ii.Quantidade > 0),
+            "loot do monstro morto no inventário");
+
+        // Ataque de um monstro específico: só o monstro indicado age
+        var monstro2 = p.MonstrosAtuais[0];
+        monstro2.DanoMaximo = 5;
+        int vidaMonstro2 = monstro2.VidaAtual;
+        int vidaJogador = p.Jogador.VidaAtual;
+        p.AtaqueDoMonstro(monstro2);
+        Verificar(monstro2.VidaAtual == vidaMonstro2, "ataque do monstro não altera a vida dele");
+        Verificar(p.MonstrosAtuais[1].VidaAtual == 3, "outro monstro não é afetado");
+        Verificar(p.Jogador.VidaAtual <= vidaJogador, "o monstro escolhido causa dano ao jogador");
+
+        // Alvo fora da luta não pode ser atacado
+        var msgsAlvoFora = p.AtaqueDoJogador(espada, alvo);
+        Verificar(msgsAlvoFora.Count == 0, "atacar um monstro fora da luta não faz nada");
+
+        // Morte do jogador: todos os monstros são limpos e o respawn segue a
+        // regra existente (Casa, 25% do ouro, vida cheia)
+        p.Jogador.VidaAtual = 1;
+        p.Jogador.Ouro = 100;
+        var agressor = p.MonstrosAtuais[0];
+        agressor.DanoMaximo = 10;
+        var msgsMorte = null as List<string>;
+        for (int i = 0; i < 500 && p.Jogador.LocalAtual.ID != Mundo.LOCAL_ID_CASA; i++)
+            msgsMorte = p.AtaqueDoMonstro(agressor);
+
+        Verificar(p.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CASA, "morte => teletransporte para a Casa");
+        Verificar(p.MonstrosAtuais.Count == 0, "morte do jogador limpa todos os monstros");
+        Verificar(p.Jogador.VidaAtual == p.Jogador.VidaMaximaEfetiva, "respawn com vida cheia");
+        Verificar(p.Jogador.Ouro == 75, "perde 25% do ouro (100 - 25 = 75)");
+        Verificar(msgsMorte != null && msgsMorte.Any(m => m.Contains("matou você")), "mensagem de morte");
+
+        // Sair e voltar: o local recria todos os monstros
+        IrParaJardim(p);
+        Verificar(p.MonstrosAtuais.Count == 3, "sair e voltar recria os 3 monstros do local");
     }
 
     static void RegrasPocaoSemPoção()
@@ -435,6 +506,7 @@ static class Program
         RegrasAtaqueDoMonstro();
         RegrasArmaSelecionada();
         RegrasPocaoSemPoção();
+        RegrasMultiplosMonstros();
 
         Console.WriteLine();
         Console.WriteLine(_falhas == 0 ? "TODOS OS TESTES PASSARAM" : _falhas + " TESTE(S) FALHARAM");

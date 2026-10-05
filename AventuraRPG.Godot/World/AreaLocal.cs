@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using Motor;
 
@@ -17,12 +18,12 @@ public abstract partial class AreaLocal : Node2D
     public Jogador2D Jogador { get; private set; }
     // As saídas da área
     public List<SaidaLocal> Saidas { get; } = new List<SaidaLocal>();
-    // O inimigo (apresentação) desta área: a representação visual do
-    // Partida.MonstroAtual, quando o Local tem um monstro vivo
-    public Inimigo2D Inimigo { get; private set; }
-    // Repassa o sinal do inimigo (estava em posição de atacar) para o Jogo,
-    // que pergunta ao Motor as regras de dano/morte
-    public event Action InimigoAtacou;
+    // Os inimigos (apresentação) desta área: a representação visual de cada
+    // monstro da Partida.MonstrosAtuais (uma área pode ter vários)
+    public List<Inimigo2D> Inimigos { get; private set; } = new List<Inimigo2D>();
+    // Repassa o sinal do inimigo (estava em posição de atacar, com a fonte)
+    // para o Jogo, que pergunta ao Motor as regras de dano/morte
+    public event Action<Inimigo2D> InimigoAtacou;
 
     protected AreaLocal(Local local)
     {
@@ -35,8 +36,9 @@ public abstract partial class AreaLocal : Node2D
     // O cenário da área (chão, paredes, portas)
     protected abstract void CriaCenario();
 
-    // Onde o inimigo aparece nesta área (nulo = a área não tem inimigo)
-    protected virtual Vector2? PosicaoInimigo => null;
+    // Onde os inimigos aparecem nesta área (lista vazia = a área não tem
+    // inimigo; a i-ésima posição é do i-ésimo monstro do local)
+    protected virtual List<Vector2> PosicoesInimigos => new List<Vector2>();
 
     // Monta a área completa (cenário + jogador + saídas).
     // Chamada pelo Jogo antes de a área entrar na cena. Se spawnDestino é
@@ -68,32 +70,49 @@ public abstract partial class AreaLocal : Node2D
         return saida;
     }
 
-    // Sincroniza o inimigo visual com o estado real do Motor:
-    // monstro vivo => inimigo presente (barra de HP atualizada);
-    // monstro morto/ausente => inimigo removido.
-    public void AtualizaInimigo(Monstro monstro)
+    // Sincroniza os inimigos visuais com o estado real do Motor (a identidade
+    // é a referência da instância Monstro, a mesma que o Motor altera):
+    // cada monstro vivo => um inimigo presente (barra de HP atualizada);
+    // monstro morto/ausente => inimigo removido (os demais continuam).
+    public void AtualizaInimigos(List<Monstro> monstros)
     {
-        if (monstro == null)
+        // Remove os inimigos cujo monstro saiu da luta (morreu ou o local
+        // mudou). O Free é adiado em timer (fora do passo de física):
+        // liberar um CharacterBody2D durante a física deixa o corpo fantasma
+        // no espaço físico e novos corpos colidem com ele
+        for (int i = Inimigos.Count - 1; i >= 0; i--)
         {
-            if (Inimigo != null)
+            var inimigo = Inimigos[i];
+            if (monstros == null || !monstros.Contains(inimigo.Monstro))
             {
-                Inimigo.Free();
-                Inimigo = null;
+                Inimigos.RemoveAt(i);
+                inimigo.ProcessMode = Node.ProcessModeEnum.Disabled;
+                GetTree().CreateTimer(0.2f).Timeout += inimigo.Free;
             }
+        }
+
+        if (monstros == null)
             return;
-        }
 
-        if (Inimigo == null)
+        // Cria um inimigo para cada monstro vivo ainda sem representação
+        var posicoes = PosicoesInimigos;
+        int proximaPosicao = 0;
+        foreach (var monstro in monstros)
         {
-            var posicao = PosicaoInimigo;
-            if (posicao == null)
-                return; // esta área não tem ponto para o inimigo
+            if (Inimigos.Any(i => ReferenceEquals(i.Monstro, monstro)))
+                continue;
 
-            Inimigo = new Inimigo2D(monstro, Jogador) { Position = posicao.Value };
-            Inimigo.AtaqueSolicitado += () => InimigoAtacou?.Invoke();
-            AddChild(Inimigo);
+            if (proximaPosicao >= posicoes.Count)
+                break; // esta área não tem ponto para mais inimigos
+
+            var inimigo = new Inimigo2D(monstro, Jogador) { Position = posicoes[proximaPosicao] };
+            inimigo.AtaqueSolicitado += i => InimigoAtacou?.Invoke(i);
+            AddChild(inimigo);
+            Inimigos.Add(inimigo);
+            proximaPosicao++;
         }
 
-        Inimigo.AtualizarHp();
+        foreach (var inimigo in Inimigos)
+            inimigo.AtualizarHp();
     }
 }
