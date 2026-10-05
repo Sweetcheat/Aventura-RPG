@@ -14,10 +14,13 @@ public partial class SaidaLocal : Area2D
     public Local Area { get; set; }
     // O destino, resolvido no grafo do Motor (ex.: a Praça)
     public Local Destino { get; set; }
+    // Onde o jogador deve aparecer na área de destino ao usar esta saída
+    // (spawn contextual: informação espacial da apresentação, não do Motor)
+    public Vector2? PosicaoEntradaDestino { get; set; }
 
     // A apresentação solicita o movimento (mesmo fluxo dos antigos botões:
-    // o destino já resolvido vai para a Partida)
-    public event Action<Local> SaidaUsada;
+    // a saída — com destino e ponto de entrada — vai para o Jogo/Partida)
+    public event Action<SaidaLocal> SaidaUsada;
 
     private Local _localAtual;
     private bool _jogadorProximo;
@@ -85,6 +88,6 @@ public partial class SaidaLocal : Area2D
         if (!PodeInteragir)
             return;
 
-        SaidaUsada?.Invoke(Destino);
+        SaidaUsada?.Invoke(this);
     }
 }

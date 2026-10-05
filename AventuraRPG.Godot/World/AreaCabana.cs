@@ -1,13 +1,15 @@
 using Godot;
 using Motor;
 
-/* A Casa: área do Local CASA do Motor — sala com 4 paredes e uma porta
-   que leva à Praça (LocalParaNorte do grafo do Motor). */
-public partial class AreaCasa : AreaLocal
+/* A Cabana: área do Local CABANA_DOS_ALQUIMISTAS do Motor — sala com 4 paredes,
+   porta sul para a Praça (LocalParaSul) e porta norte para o Jardim
+   (LocalParaNorte). É aqui que o Motor entrega a quest "Limpe o Jardim dos
+   Alquimistas" (Local.QuestDisponivelAqui) e onde ela é completada. */
+public partial class AreaCabana : AreaLocal
 {
     private static readonly Vector2 TamanhoSala = new Vector2(600, 400);
 
-    public AreaCasa(Local local)
+    public AreaCabana(Local local)
         : base(local)
     {
     }
@@ -19,7 +21,7 @@ public partial class AreaCasa : AreaLocal
         // Chão
         var chao = new Polygon2D
         {
-            Color = new Color(0.22f, 0.25f, 0.22f),
+            Color = new Color(0.24f, 0.22f, 0.19f),
             Polygon = new[]
             {
                 Vector2.Zero,
@@ -36,18 +38,30 @@ public partial class AreaCasa : AreaLocal
         AdicionaParede(new Vector2(-20, TamanhoSala.Y / 2), new Vector2(40, TamanhoSala.Y + 40));               // esquerda
         AdicionaParede(new Vector2(TamanhoSala.X + 20, TamanhoSala.Y / 2), new Vector2(40, TamanhoSala.Y + 40)); // direita
 
-        // Porta (apenas visual — a interação é da SaidaLocal)
-        var porta = new ColorRect
+        // Portas (apenas visual — a interação é da SaidaLocal)
+        var portaNorte = new ColorRect
         {
-            Position = new Vector2(430, 392),
+            Position = new Vector2(270, -8),
             Size = new Vector2(60, 16),
             Color = new Color(0.45f, 0.30f, 0.18f),
         };
-        AddChild(porta);
+        AddChild(portaNorte);
 
-        // Saída: porta -> LocalParaNorte (Praça); entrada na Praça perto da porta sul dela
-        var saida = CriaSaida(new Vector2(455, 345), Local.LocalParaNorte);
-        saida.PosicaoEntradaDestino = new Vector2(400, 740);
+        var portaSul = new ColorRect
+        {
+            Position = new Vector2(270, 392),
+            Size = new Vector2(60, 16),
+            Color = new Color(0.45f, 0.30f, 0.18f),
+        };
+        AddChild(portaSul);
+
+        // Saída: porta sul -> LocalParaSul (Praça); entrada na Praça perto da porta norte dela
+        var saidaSul = CriaSaida(new Vector2(300, 345), Local.LocalParaSul);
+        saidaSul.PosicaoEntradaDestino = new Vector2(550, 80);
+
+        // Saída: porta norte -> LocalParaNorte (Jardim); entrada no Jardim perto da porta sul dele
+        var saidaNorte = CriaSaida(new Vector2(300, 60), Local.LocalParaNorte);
+        saidaNorte.PosicaoEntradaDestino = new Vector2(400, 520);
     }
 
     private void AdicionaParede(Vector2 posicao, Vector2 tamanho)

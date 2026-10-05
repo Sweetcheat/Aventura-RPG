@@ -48,16 +48,31 @@ public partial class AreaPraca : AreaLocal
         AddChild(fonte);
 
         // Porta para a Casa (parede sul)
-        var porta = new ColorRect
+        var portaSul = new ColorRect
         {
             Position = new Vector2(370, TamanhoArea.Y - 8),
             Size = new Vector2(60, 16),
             Color = new Color(0.45f, 0.30f, 0.18f),
         };
-        AddChild(porta);
+        AddChild(portaSul);
 
-        // Saída: porta sul -> LocalParaSul (Casa)
-        CriaSaida(new Vector2(400, 700), Local.LocalParaSul);
+        // Porta para a Cabana dos Alquimistas (parede norte)
+        var portaNorte = new ColorRect
+        {
+            Position = new Vector2(520, -8),
+            Size = new Vector2(60, 16),
+            Color = new Color(0.45f, 0.30f, 0.18f),
+        };
+        AddChild(portaNorte);
+
+        // Saída: porta sul -> LocalParaSul (Casa); entrada na Casa perto da porta sul dela
+        var saidaSul = CriaSaida(new Vector2(400, 700), Local.LocalParaSul);
+        saidaSul.PosicaoEntradaDestino = new Vector2(455, 300);
+
+        // Saída: porta norte -> LocalParaNorte (Cabana dos Alquimistas);
+        // entrada na Cabana perto da porta sul dela
+        var saidaNorte = CriaSaida(new Vector2(550, 60), Local.LocalParaNorte);
+        saidaNorte.PosicaoEntradaDestino = new Vector2(300, 345);
     }
 
     private void AdicionaParede(Vector2 posicao, Vector2 tamanho)

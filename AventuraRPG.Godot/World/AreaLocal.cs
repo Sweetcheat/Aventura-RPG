@@ -35,20 +35,23 @@ public abstract partial class AreaLocal : Node2D
     protected virtual Vector2? PosicaoInimigo => null;
 
     // Monta a área completa (cenário + jogador + saídas).
-    // Chamada pelo Jogo antes de a área entrar na cena.
-    public void Cria()
+    // Chamada pelo Jogo antes de a área entrar na cena. Se spawnDestino é
+    // informado (entrada contextual vinda de uma saída), o jogador aparece
+    // lá; senão, no ponto padrão da área.
+    public void Cria(Vector2? spawnDestino = null)
     {
         CriaCenario();
 
-        Jogador = new Jogador2D { Position = PosicaoSpawn };
+        Jogador = new Jogador2D { Position = spawnDestino ?? PosicaoSpawn };
         AddChild(Jogador);
     }
 
     // Cria uma saída para um Local vizinho do grafo (ex.: Local.LocalParaNorte)
-    protected void CriaSaida(Vector2 posicao, Local destino)
+    // e devolve a saída criada (para a área definir o ponto de entrada no destino)
+    protected SaidaLocal CriaSaida(Vector2 posicao, Local destino)
     {
         if (destino == null)
-            return;
+            return null;
 
         var saida = new SaidaLocal
         {
@@ -58,6 +61,7 @@ public abstract partial class AreaLocal : Node2D
         };
         AddChild(saida);
         Saidas.Add(saida);
+        return saida;
     }
 
     // Sincroniza o inimigo visual com o estado real do Motor:

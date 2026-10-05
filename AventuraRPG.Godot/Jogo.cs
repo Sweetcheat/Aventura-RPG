@@ -17,6 +17,10 @@ public partial class Jogo : Node2D
 
     private AreaLocal _areaAtiva;
 
+    // Ponto de entrada da próxima troca de área (informado pela saída usada);
+    // nulo = spawn padrão da área
+    private Vector2? _spawnDestino;
+
     private Hud _hud;
     private PainelMensagens _mensagens;
     private PainelInventario _painelInventario;
@@ -99,8 +103,10 @@ public partial class Jogo : Node2D
     {
         return local.ID switch
         {
-            Mundo.LOCAL_ID_CASA  => new AreaCasa(local),
-            Mundo.LOCAL_ID_PRACA => new AreaPraca(local),
+            Mundo.LOCAL_ID_CASA                   => new AreaCasa(local),
+            Mundo.LOCAL_ID_PRACA                  => new AreaPraca(local),
+            Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS => new AreaCabana(local),
+            Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS => new AreaJardim(local),
             _ => null, // Local sem área 2D (as próximas fases adicionam)
         };
     }
@@ -121,7 +127,8 @@ public partial class Jogo : Node2D
         if (_areaAtiva != null)
             _areaAtiva.Free();
 
-        nova.Cria();
+        nova.Cria(_spawnDestino);
+        _spawnDestino = null;
         _areaAtiva = nova;
         AddChild(nova);
 
@@ -186,6 +193,14 @@ public partial class Jogo : Node2D
         bool painelAberto = _painelInventario.Visible || _painelQuests.Visible;
         if (_areaAtiva != null)
             _areaAtiva.Jogador.Ativo = !painelAberto;
+    }
+
+    // Entrada de movimento vinda de uma saída da área 2D: registra o ponto de
+    // entrada (spawn contextual) e segue o fluxo normal.
+    private void MoverPara(SaidaLocal saida)
+    {
+        _spawnDestino = saida.PosicaoEntradaDestino;
+        MoverPara(saida.Destino);
     }
 
     // Única entrada de movimento, independente de quem originou a solicitação
@@ -478,6 +493,138 @@ public partial class Jogo : Node2D
 
         AlternaPainel(false);
         Verificar(!_painelInventario.Visible && !_painelQuests.Visible, "teclas continuam fechando os painéis");
+
+        // ---- Fase 9: expansão do mundo (Praça <-> Cabana <-> Jardim) e a quest
+        // "Limpe o Jardim dos Alquimistas" (entrega e conclusão são do Motor) ----
+
+        // Os 4 Locais com representação 2D (os demais ainda não têm, nesta fase)
+        var areaTesteCasa = CriaArea(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA));
+        Verificar(areaTesteCasa is AreaCasa, "Casa tem representação 2D válida (AreaCasa)");
+        areaTesteCasa?.Free();
+        var areaTestePraca = CriaArea(Mundo.LocalPorID(Mundo.LOCAL_ID_PRACA));
+        Verificar(areaTestePraca is AreaPraca, "Praça tem representação 2D válida (AreaPraca)");
+        areaTestePraca?.Free();
+        var areaTesteCabana = CriaArea(Mundo.LocalPorID(Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS));
+        Verificar(areaTesteCabana is AreaCabana, "Cabana tem representação 2D válida (AreaCabana)");
+        areaTesteCabana?.Free();
+        var areaTesteJardim = CriaArea(Mundo.LocalPorID(Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS));
+        Verificar(areaTesteJardim is AreaJardim, "Jardim tem representação 2D válida (AreaJardim)");
+        areaTesteJardim?.Free();
+
+        // Praça -> Cabana (saída norte da Praça)
+        MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_PRACA));
+        await Frames(3);
+        Verificar(_areaAtiva is AreaPraca, "área visual = Praça");
+
+        SaidaLocal saidaPraçaNorte = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS);
+        _areaAtiva.Jogador.Position = saidaPraçaNorte.Position;
+        await Frames(10);
+        Verificar(saidaPraçaNorte.NaProximidade, "saída norte da Praça detecta o jogador");
+        saidaPraçaNorte.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS, "E na Praça leva o jogador à Cabana (Motor)");
+        Verificar(_areaAtiva is AreaCabana, "representação visual troca para a Cabana");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 300f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 345f) < 1f,
+            "spawn contextual: jogador aparece no ponto de entrada da Cabana");
+
+        // Quest: já recebida ao entrar na Cabana (fluxo anterior do teste); estado no Motor
+        var questJardim = Mundo.QuestPorID(Mundo.QUEST_ID_LIMPAR_JARDIM_DOS_ALQUIMISTAS);
+        Verificar(_partida.Jogador.TemEstaQuest(questJardim) && !_partida.Jogador.QuestEstaCompletada(questJardim),
+            "quest 'Limpe o Jardim' recebida e em andamento (estado do Motor)");
+
+        // Cabana -> Jardim (saída norte da Cabana)
+        SaidaLocal saidaCabanaJardim = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS);
+        _areaAtiva.Jogador.Position = saidaCabanaJardim.Position;
+        await Frames(10);
+        Verificar(saidaCabanaJardim.NaProximidade, "saída norte da Cabana detecta o jogador");
+        saidaCabanaJardim.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS, "E na Cabana leva o jogador ao Jardim (Motor)");
+        Verificar(_areaAtiva is AreaJardim, "representação visual troca para o Jardim");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 400f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 520f) < 1f,
+            "spawn contextual: jogador aparece no ponto de entrada do Jardim");
+
+        // O Rato do Jardim: o Motor o recria na entrada; a apresentação o exibe
+        Verificar(_partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_RATO,
+            "MonstroAtual do Motor = Rato do Jardim");
+        Verificar(_areaAtiva.Inimigo != null, "Rato aparece no Jardim (representação visual)");
+
+        // Quest: derrota 3 Ratos (drop determinístico de cauda de rato) e volte à Cabana
+        for (int morte = 0; morte < 3; morte++)
+        {
+            if (morte > 0)
+            {
+                // Sair e voltar (Jardim -> Cabana -> Jardim) para o Motor ressuscitar o Rato
+                SaidaLocal saidaJardimVolta = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS);
+                _areaAtiva.Jogador.Position = saidaJardimVolta.Position;
+                await Frames(10);
+                saidaJardimVolta.Interagir();
+                SaidaLocal saidaCabanaVolta = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS);
+                _areaAtiva.Jogador.Position = saidaCabanaVolta.Position;
+                await Frames(10);
+                saidaCabanaVolta.Interagir();
+            }
+
+            // Drop determinístico: cauda de rato em 100% (item comum)
+            _partida.MonstroAtual.LootTable.Clear();
+            _partida.MonstroAtual.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_CAUDA_DE_RATO), 100, true));
+
+            var inimigoJardim = _areaAtiva.Inimigo;
+            _areaAtiva.Jogador.Position = inimigoJardim.Position + new Vector2(-40f, 0f);
+            await Frames(3);
+            int golpesJardim = 0;
+            while (_partida.MonstroAtual != null && golpesJardim < 10)
+            {
+                AtacarInimigo();
+                golpesJardim++;
+            }
+            Verificar(_partida.MonstroAtual == null, $"Rato {morte + 1} derrotado (Motor)");
+        }
+
+        Verificar(_partida.Jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_CAUDA_DE_RATO && ii.Quantidade >= 3),
+            "3 caudas de rato no inventário (loot do Motor)");
+
+        // Jardim -> Cabana: voltar com as 3 caudas completa a quest (Motor)
+        int ouroAntesQuest = _partida.Jogador.Ouro;
+        int xpAntesQuest = _partida.Jogador.PontosExperiencia;
+        SaidaLocal saidaJardimFim = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS);
+        _areaAtiva.Jogador.Position = saidaJardimFim.Position;
+        await Frames(10);
+        Verificar(saidaJardimFim.NaProximidade, "saída sul do Jardim detecta o jogador");
+        saidaJardimFim.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS, "E no Jardim leva o jogador de volta à Cabana (Motor)");
+        Verificar(_areaAtiva is AreaCabana, "representação visual volta para a Cabana");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 300f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 100f) < 1f,
+            "spawn contextual: jogador aparece no ponto de entrada da Cabana");
+
+        Verificar(_partida.Jogador.QuestEstaCompletada(questJardim), "quest completada ao voltar à Cabana com as caudas (Motor)");
+        Verificar(_mensagens.Texto.Contains("completou 'Limpe o Jardim dos Alquimistas'"), "mensagem de conclusão da quest vem do Motor");
+        Verificar(_partida.Jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_POCAO_DE_CURA && ii.Quantidade > 0),
+            "recompensa da quest: pocao de cura (Motor)");
+        Verificar(!_partida.Jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_CAUDA_DE_RATO && ii.Quantidade > 0),
+            "itens da quest removidos do inventário (Motor)");
+        Verificar(_partida.Jogador.Ouro == ouroAntesQuest + 10, "recompensa da quest: 10 de ouro (Motor)");
+        Verificar(_partida.Jogador.PontosExperiencia == xpAntesQuest + 20, "recompensa da quest: 20 de XP (Motor)");
+
+        // O diário mostra a quest concluída com o estado real do Motor
+        AlternaPainel(false);
+        Verificar(_painelQuests.TextoConteudo.Contains("Limpe o Jardim dos Alquimistas")
+                && _painelQuests.TextoConteudo.Contains("Recompensa recebida"),
+            "diário de quests mostra a quest concluída (estado real do Motor)");
+        AlternaPainel(false);
+
+        // Cabana -> Praça (saída sul da Cabana)
+        SaidaLocal saidaCabanaPraça = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_PRACA);
+        _areaAtiva.Jogador.Position = saidaCabanaPraça.Position;
+        await Frames(10);
+        Verificar(saidaCabanaPraça.NaProximidade, "saída sul da Cabana detecta o jogador");
+        saidaCabanaPraça.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_PRACA, "E na Cabana leva o jogador à Praça (Motor)");
+        Verificar(_areaAtiva is AreaPraca, "representação visual volta para a Praça");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 550f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 80f) < 1f,
+            "spawn contextual: jogador aparece no ponto de entrada da Praça");
 
         GD.Print(falhas == 0 ? "[AutoTeste] TODOS OS CHECKS OK" : $"[AutoTeste] {falhas} CHECK(S) FALHARAM");
     }
