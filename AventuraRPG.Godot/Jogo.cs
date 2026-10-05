@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Godot;
@@ -192,6 +193,10 @@ public partial class Jogo : Node2D
             UsarPocao();
         else if (Input.IsActionJustPressed("trocar_arma"))
             TrocarArma();
+        else if (Input.IsActionJustPressed("salvar_jogo"))
+            SalvarJogo();
+        else if (Input.IsActionJustPressed("carregar_jogo"))
+            CarregarJogo();
     }
 
     // Abre/fecha o painel pedido (ao abrir, fecha o outro, se estiver aberto).
@@ -333,6 +338,36 @@ public partial class Jogo : Node2D
             _mensagens.AdicionaMensagem(mensagem);
 
         AtualizaInterface();
+    }
+
+    // Save/Load (Fase 14): o arquivo vive no diretório de dados do usuário
+    // (user:// do Godot, fora do repositório). O Jogo só decide o caminho e
+    // reexibe o resultado: o conteúdo é todo estado do Motor (Salvamento).
+    private string CaminhoSave()
+    {
+        return ProjectSettings.GlobalizePath("user://save.json");
+    }
+
+    private void SalvarJogo()
+    {
+        if (_partida.Salvar(CaminhoSave()))
+            _mensagens.AdicionaMensagem("Jogo salvo.");
+        else
+            _mensagens.AdicionaMensagem("Falha ao salvar o jogo.");
+    }
+
+    private void CarregarJogo()
+    {
+        if (_partida.Carregar(CaminhoSave()))
+        {
+            _mensagens.AdicionaMensagem("Jogo carregado.");
+            // Reexibe a interface a partir do estado restaurado: HUD e
+            // painéis relêem o Motor; a área troca se o Local mudou (senão os
+            // inimigos são reconstruídos a partir dos MonstrosAtuais novos)
+            AtualizaInterface();
+        }
+        else
+            _mensagens.AdicionaMensagem("Nenhum save válido encontrado.");
     }
 
     private void AtualizaInterface()
@@ -1174,6 +1209,103 @@ public partial class Jogo : Node2D
         await Frames(3);
         Verificar(_areaAtiva is AreaJardim && _partida.MonstrosAtuais.Count == 3 && _areaAtiva.Inimigos.Count == 3,
             "F13: o Jardim recria os 3 monstros (Motor) com 3 inimigos (apresentação)");
+
+        // ---- Fase 14: save/load (estado do Motor em JSON; arquivo em
+        // user://, fora do repositório; o Godot só decide o caminho) ----
+
+        Verificar(InputMap.HasAction("salvar_jogo") && InputMap.HasAction("carregar_jogo"),
+            "F14: Input Map tem as ações de save/load");
+        Verificar(ConteemTecla("salvar_jogo", Key.F5), "F14: tecla F5 mapeada para salvar_jogo");
+        Verificar(ConteemTecla("carregar_jogo", Key.F9), "F14: tecla F9 mapeada para carregar_jogo");
+
+        string caminhoSave = ProjectSettings.GlobalizePath("user://save.json");
+        if (File.Exists(caminhoSave))
+            File.Delete(caminhoSave);
+
+        // Estado a ser salvo (fim da F13: Jardim, 3 Ratos): derrota um Rato e
+        // marca o primeiro sobrevivente como ferido — o save deve guardar os
+        // monstros vivos com o HP individual de cada um
+        var alvoF14 = _partida.MonstrosAtuais[0];
+        alvoF14.VidaAtual = 1;
+        alvoF14.LootTable.Clear();
+        alvoF14.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
+        var inimigoAlvoF14 = _areaAtiva.Inimigos.First(i => i.Monstro == alvoF14);
+        _areaAtiva.Jogador.Position = inimigoAlvoF14.Position + new Vector2(-40f, 0f);
+        await Frames(3);
+        AtacarInimigo();
+        Verificar(_partida.MonstrosAtuais.Count == 2, "F14: um Rato derrotado antes do save");
+
+        _partida.MonstrosAtuais[0].VidaAtual = 2;   // o Rato ferido do save
+        _partida.Jogador.VidaAtual = 9;
+        _partida.Jogador.Ouro = 55;
+        _partida.Jogador.PontosExperiencia = 150;   // level 2
+        _partida.Jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_POCAO_DE_CURA));
+        _partida.Jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_POCAO_DE_CURA));
+
+        SalvarJogo();
+        Verificar(File.Exists(caminhoSave), "F14: salvar (F5) cria o arquivo em user://");
+
+        // Muda o estado de verdade: sai do Jardim (monstros limpos, cura na Casa)
+        MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA));
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CASA
+                && _partida.MonstrosAtuais.Count == 0,
+            "F14: estado alterado após o save (Casa, sem monstros)");
+
+        CarregarJogo();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS,
+            "F14: carregar (F9) restaura a localização (Jardim)");
+        Verificar(_areaAtiva is AreaJardim, "F14: a área correta é reconstruída (Jardim)");
+        Verificar(_partida.Jogador.VidaAtual == 9, "F14: HP restaurado (9)");
+        Verificar(_partida.Jogador.Ouro == 55, "F14: ouro restaurado (55)");
+        Verificar(_partida.Jogador.PontosExperiencia == 150, "F14: XP restaurado (150)");
+        Verificar(_partida.Jogador.Level == 2, "F14: level restaurado (2)");
+        Verificar(_partida.ArmaSelecionada != null && _partida.ArmaSelecionada.ID == Mundo.ITEM_ID_PORRETE,
+            "F14: arma selecionada restaurada (Porrete)");
+        Verificar(_partida.Jogador.Inventario.FirstOrDefault(ii => ii.Detalhes.ID == Mundo.ITEM_ID_POCAO_DE_CURA)?.Quantidade == 2,
+            "F14: quantidade de poções restaurada (2)");
+        Verificar(_partida.MonstrosAtuais.Count == 2, "F14: monstros vivos restaurados (2 Ratos)");
+        Verificar(_partida.MonstrosAtuais[0].VidaAtual == 2, "F14: HP individual do monstro ferido restaurado");
+        Verificar(_partida.MonstrosAtuais[1].VidaAtual == 3, "F14: monstro intacto restaurado com vida cheia");
+        Verificar(_areaAtiva.Inimigos.Count == 2, "F14: a apresentação reconstrói os 2 inimigos");
+        Verificar(_partida.Jogador.QuestEstaCompletada(Mundo.QuestPorID(Mundo.QUEST_ID_LIMPAR_JARDIM_DOS_ALQUIMISTAS)),
+            "F14: quest concluída restaurada");
+        Verificar(_hud.TextoLocal.Contains("Jardim"), "F14: HUD reflete o Local restaurado");
+        Verificar(_hud.TextoVida.Contains($"HP: 9/{_partida.Jogador.VidaMaximaEfetiva}"), "F14: HUD reflete o HP restaurado");
+        Verificar(_hud.TextoArma.Contains("Porrete"), "F14: HUD reflete a arma restaurada");
+        Verificar(_hud.TextoPocoes.Contains("Poções: 2"), "F14: HUD reflete as poções restauradas");
+        AlternaPainel(true);
+        Verificar(_painelInventario.TextoConteudo.Contains("Pocao de cura"), "F14: inventário reflete o estado restaurado");
+        AlternaPainel(false);
+        Verificar(_painelQuests.TextoConteudo.Contains("Limpe o Jardim dos Alquimistas")
+                && _painelQuests.TextoConteudo.Contains("Recompensa recebida"),
+            "F14: diário de quests reflete o progresso salvo");
+        AlternaPainel(false);
+
+        // Load no mesmo Local: a área não é trocada; os inimigos visuais são
+        // reconstruídos a partir das novas instâncias do Motor
+        CarregarJogo();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS
+                && _areaAtiva is AreaJardim, "F14: load no mesmo Local mantém a área");
+        Verificar(_partida.MonstrosAtuais.Count == 2 && _partida.MonstrosAtuais[0].VidaAtual == 2,
+            "F14: load no mesmo Local restaura os monstros (mesmos HP)");
+        Verificar(_areaAtiva.Inimigos.Count == 2, "F14: inimigos reconstruídos no mesmo Local");
+
+        // Sem arquivo: o estado não muda
+        File.Delete(caminhoSave);
+        CarregarJogo();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS
+                && _partida.MonstrosAtuais.Count == 2,
+            "F14: sem arquivo o estado não muda");
+        Verificar(_mensagens.Texto.Contains("Nenhum save"), "F14: mensagem de ausência de save");
+
+        // Arquivo corrompido: o estado não muda
+        File.WriteAllText(caminhoSave, "isto não é um save válido {");
+        CarregarJogo();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS
+                && _partida.MonstrosAtuais.Count == 2 && _partida.MonstrosAtuais[0].VidaAtual == 2,
+            "F14: arquivo corrompido não altera o estado");
+
+        File.Delete(caminhoSave);
 
         GD.Print(falhas == 0 ? "[AutoTeste] TODOS OS CHECKS OK" : $"[AutoTeste] {falhas} CHECK(S) FALHARAM");
 

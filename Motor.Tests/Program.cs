@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using Motor;
@@ -491,6 +492,108 @@ static class Program
             "mensagem exata do Motor para uso sem poção");
     }
 
+    static void CenarioSalvamento()
+    {
+        Cabecalho("Save/Load: estado completo (local, HP, ouro, XP, level, inventário, arma, quests, monstros)");
+
+        string caminho = Path.Combine(Path.GetTempPath(), "motor_teste_save_" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            var p = NovaPartida();
+            var porrete   = (Arma)Mundo.ItemPorID(Mundo.ITEM_ID_PORRETE);
+            var questJardim = Mundo.QuestPorID(Mundo.QUEST_ID_LIMPAR_JARDIM_DOS_ALQUIMISTAS);
+            var questCampos = Mundo.QuestPorID(Mundo.QUEST_ID_LIMPAR_AREA_DOS_CAMPONESES);
+
+            // Recebe e completa a quest do Jardim (progresso de quest no save)
+            IrParaCabana(p);
+            for (int i = 0; i < 3; i++)
+                p.Jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_CAUDA_DE_RATO));
+            IrParaCasa(p);
+            p.MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS)); // completa a quest
+            Verificar(p.Jogador.QuestEstaCompletada(questJardim), "quest do Jardim concluída antes do save");
+
+            // Estado a ser salvo: no Jardim, 2 Ratos vivos (um ferido)
+            IrParaJardim(p);
+            var alvo = p.MonstrosAtuais[0];
+            alvo.VidaAtual = 1;
+            alvo.LootTable.Clear();
+            alvo.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true)); // drop determinístico
+            p.AtaqueDoJogador(p.ArmaSelecionada, alvo);
+            Verificar(p.MonstrosAtuais.Count == 2, "um Rato derrotado antes do save");
+            p.MonstrosAtuais[0].VidaAtual = 2;        // o Rato ferido do save
+            p.Jogador.VidaAtual = 7;
+            p.Jogador.Ouro = 42;
+            p.Jogador.PontosExperiencia = 150;        // level 2
+            p.Jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_PORRETE));
+            p.Jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_POCAO_DE_CURA));
+            p.Jogador.AdicioneItemAoInventario(Mundo.ItemPorID(Mundo.ITEM_ID_POCAO_DE_CURA));
+            p.SelecionarArma(porrete);
+
+            Verificar(p.Salvar(caminho), "salvar grava o arquivo");
+            Verificar(File.Exists(caminho), "arquivo de save existe no disco");
+
+            // Modifica o estado de várias formas (o load deve desfazer tudo)
+            IrParaCasa(p);                             // monstros limpos + cura na Casa
+            p.Jogador.Ouro = 0;
+            p.Jogador.PontosExperiencia = 0;
+            p.Jogador.VidaAtual = 15;
+            p.MonstrosAtuais.Clear();
+
+            Verificar(p.Carregar(caminho), "carregar restaura o estado");
+            Verificar(p.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS, "localização restaurada (Jardim)");
+            Verificar(p.Jogador.VidaAtual == 7, "HP restaurado (7)");
+            Verificar(p.Jogador.Ouro == 42, "ouro restaurado (42)");
+            Verificar(p.Jogador.PontosExperiencia == 150, "XP restaurado (150)");
+            Verificar(p.Jogador.Level == 2, "level restaurado (2, derivado do XP)");
+            Verificar(p.ArmaSelecionada != null && p.ArmaSelecionada.ID == Mundo.ITEM_ID_PORRETE,
+                "arma selecionada restaurada (Porrete)");
+            Verificar(TemItem(p, Mundo.ITEM_ID_POCAO_DE_CURA, 3), "quantidade de poções restaurada (1 da quest + 2)");
+            Verificar(TemItem(p, Mundo.ITEM_ID_PORRETE, 1), "arma no inventário restaurada");
+            Verificar(p.Jogador.QuestEstaCompletada(questJardim), "quest concluída restaurada");
+            Verificar(!p.Jogador.TemEstaQuest(questCampos), "quest não recebida continua ausente");
+            Verificar(p.MonstrosAtuais.Count == 2, "monstros vivos restaurados (2 Ratos)");
+            Verificar(p.MonstrosAtuais[0].VidaAtual == 2, "HP individual do monstro ferido restaurado");
+            Verificar(p.MonstrosAtuais[1].VidaAtual == 3, "monstro intacto restaurado com vida cheia");
+            Verificar(p.MonstrosAtuais.TrueForAll(m => m.LootTable.Count > 0),
+                "LootTable recriada dos templates do Mundo (não é persistida)");
+        }
+        finally
+        {
+            if (File.Exists(caminho))
+                File.Delete(caminho);
+        }
+
+        Cabecalho("Save/Load: arquivo inexistente, corrompido e com ID inexistente");
+
+        var p2 = NovaPartida();
+        int localAntes = p2.Jogador.LocalAtual.ID;
+
+        string caminhoFantasma = Path.Combine(Path.GetTempPath(), "motor_teste_save_" + Guid.NewGuid().ToString("N") + ".json");
+        Verificar(!p2.Carregar(caminhoFantasma), "arquivo inexistente => carregar falha");
+        Verificar(p2.Jogador.LocalAtual.ID == localAntes, "estado intacto após arquivo inexistente");
+
+        string caminhoCorrompido = Path.Combine(Path.GetTempPath(), "motor_teste_save_" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            File.WriteAllText(caminhoCorrompido, "isto não é JSON válido {");
+            Verificar(!p2.Carregar(caminhoCorrompido), "arquivo corrompido => carregar falha");
+            Verificar(p2.Jogador.LocalAtual.ID == localAntes, "estado intacto após arquivo corrompido");
+
+            // JSON válido, mas referenciando um local inexistente no Mundo
+            File.WriteAllText(caminhoCorrompido,
+                "{\"LocalId\": 999, \"VidaAtual\": 1, \"VidaMaxima\": 15, \"Ouro\": 0, " +
+                "\"PontosExperiencia\": 0, \"ArmaId\": 1, \"RecebeuRecompensaPorrete\": false, " +
+                "\"Inventario\": [], \"Quests\": [], \"Monstros\": []}");
+            Verificar(!p2.Carregar(caminhoCorrompido), "JSON com local inexistente no Mundo => carregar falha");
+            Verificar(p2.Jogador.LocalAtual.ID == localAntes, "estado intacto após save de versão incompatível");
+        }
+        finally
+        {
+            if (File.Exists(caminhoCorrompido))
+                File.Delete(caminhoCorrompido);
+        }
+    }
+
     static int Main()
     {
         Console.OutputEncoding = Encoding.UTF8;
@@ -507,6 +610,7 @@ static class Program
         RegrasArmaSelecionada();
         RegrasPocaoSemPoção();
         RegrasMultiplosMonstros();
+        CenarioSalvamento();
 
         Console.WriteLine();
         Console.WriteLine(_falhas == 0 ? "TODOS OS TESTES PASSARAM" : _falhas + " TESTE(S) FALHARAM");

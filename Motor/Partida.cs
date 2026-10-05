@@ -131,21 +131,27 @@ namespace Motor
                 foreach (var monstroNormal in novoLocal.MonstrosVivosAqui)
                 {
                     mensagens.Add($"Você vê um(a) {monstroNormal.Nome}{Environment.NewLine}");
-
-                    // Instancia um novo monstro a partir dos dados padrão do Mundo
-                    var monstroVivo = new Monstro(
-                        monstroNormal.ID, monstroNormal.Nome, monstroNormal.DanoMaximo,
-                        monstroNormal.PontosExperienciaRecompensa, monstroNormal.OuroRecompensa,
-                        monstroNormal.VidaAtual, monstroNormal.VidaMaxima);
-
-                    foreach (var itemLoot in monstroNormal.LootTable)
-                        monstroVivo.LootTable.Add(itemLoot);
-
-                    MonstrosAtuais.Add(monstroVivo);
+                    MonstrosAtuais.Add(CriaMonstro(monstroNormal));
                 }
             }
 
             return mensagens;
+        }
+
+        /*  Instancia um monstro vivo a partir do template do Mundo (dados
+            fixos do mundo: dano, XP, ouro e LootTable). Usado na troca de
+            local e no load de save. */
+        private Monstro CriaMonstro(Monstro modelo)
+        {
+            var monstro = new Monstro(
+                modelo.ID, modelo.Nome, modelo.DanoMaximo,
+                modelo.PontosExperienciaRecompensa, modelo.OuroRecompensa,
+                modelo.VidaMaxima, modelo.VidaMaxima);
+
+            foreach (var itemLoot in modelo.LootTable)
+                monstro.LootTable.Add(itemLoot);
+
+            return monstro;
         }
 
         /*  Ataque do jogador contra um monstro específico: dano (mínimo 1 +
@@ -342,6 +348,66 @@ namespace Motor
 
             if (Jogador.Level > levelAntes)
                 mensagens.Add($"Você subiu para o level {Jogador.Level}!{Environment.NewLine}");
+        }
+
+        /*  Save (Fase 14): grava o estado do jogo em JSON no caminho
+            informado (a camada de apresentação decide o local do arquivo;
+            nunca dentro do repositório). O conteúdo é todo estado do Motor —
+            ver Salvamento. Retorna false se a escrita no disco falhar. */
+        public bool Salvar(string caminho)
+        {
+            return Salvamento.EscreverArquivo(caminho, Salvamento.ParaEstado(this));
+        }
+
+        /*  Load (Fase 14): restaura o estado do jogo a partir do arquivo.
+            Retorna false (e não altera nada) se o arquivo não existir,
+            estiver inválido/corrompido ou referenciar dados inexistentes no
+            Mundo. O load não cura, ressuscita nem teleporta: ele restaura o
+            estado exatamente como ele estava no save. */
+        public bool Carregar(string caminho)
+        {
+            var estado = Salvamento.LerArquivo(caminho);
+            if (estado == null)
+                return false;
+
+            AplicarEstado(estado);
+            return true;
+        }
+
+        // Aplica o estado salvo à Partida (chamado só após a validação do
+        // arquivo em LerArquivo). Monstros vivos são recriados como novas
+        // instâncias a partir dos templates do Mundo, com o HP individual
+        // do save; dados fixos (dano, XP, loot) vêm do template.
+        private void AplicarEstado(Salvamento.EstadoJogo estado)
+        {
+            Jogador.LocalAtual = Mundo.LocalPorID(estado.LocalId);
+            Jogador.VidaAtual = estado.VidaAtual;
+            Jogador.VidaMaxima = estado.VidaMaxima;
+            Jogador.Ouro = estado.Ouro;
+            Jogador.PontosExperiencia = estado.PontosExperiencia;
+            Jogador.RecebeuRecompensaPorrete = estado.RecebeuRecompensaPorrete;
+
+            Jogador.Inventario = new List<InventarioItem>();
+            foreach (var item in estado.Inventario)
+                Jogador.Inventario.Add(new InventarioItem(Mundo.ItemPorID(item.ItemId), item.Quantidade));
+
+            Jogador.Quests = new List<JogadorQuest>();
+            foreach (var quest in estado.Quests)
+            {
+                var jogadorQuest = new JogadorQuest(Mundo.QuestPorID(quest.QuestId));
+                jogadorQuest.Completado = quest.Completado;
+                Jogador.Quests.Add(jogadorQuest);
+            }
+
+            ArmaSelecionada = (Arma)Mundo.ItemPorID(estado.ArmaId);
+
+            MonstrosAtuais = new List<Monstro>();
+            foreach (var monstroSalvo in estado.Monstros)
+            {
+                var monstro = CriaMonstro(Mundo.MonstroPorID(monstroSalvo.MonstroId));
+                monstro.VidaAtual = monstroSalvo.VidaAtual;
+                MonstrosAtuais.Add(monstro);
+            }
         }
     }
 }
