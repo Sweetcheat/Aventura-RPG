@@ -105,9 +105,14 @@ public partial class Jogo : Node2D
         {
             Mundo.LOCAL_ID_CASA                   => new AreaCasa(local),
             Mundo.LOCAL_ID_PRACA                  => new AreaPraca(local),
+            Mundo.LOCAL_ID_POSTO_DE_GUARDA        => new AreaPosto(local),
             Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS => new AreaCabana(local),
             Mundo.LOCAL_ID_JARDIM_DOS_ALQUIMISTAS => new AreaJardim(local),
-            _ => null, // Local sem área 2D (as próximas fases adicionam)
+            Mundo.LOCAL_ID_CASA_DA_FAZENDA        => new AreaFazenda(local),
+            Mundo.LOCAL_ID_AREA_DOS_CAMPONESES    => new AreaCamponeses(local),
+            Mundo.LOCAL_ID_PONTE                  => new AreaPonte(local),
+            Mundo.LOCAL_ID_CAMPO_DAS_ARANHAS      => new AreaFloresta(local),
+            _ => null, // Local sem área 2D
         };
     }
 
@@ -625,6 +630,173 @@ public partial class Jogo : Node2D
         Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 550f) < 1f
                 && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 80f) < 1f,
             "spawn contextual: jogador aparece no ponto de entrada da Praça");
+
+        // ---- Fase 10: mundo completo — os 5 Locais restantes do grafo do
+        // Motor (Posto de Guarda, Casa de Fazenda, Area dos Camponeses, Ponte
+        // e Floresta) e suas conexões pelas saídas 2D ----
+
+        // Os 9 Locais do Motor agora possuem representação 2D
+        bool todosLocaisComArea = true;
+        foreach (var local in Mundo.Locais)
+        {
+            var area = CriaArea(local);
+            if (area == null)
+                todosLocaisComArea = false;
+            area?.Free();
+        }
+        Verificar(todosLocaisComArea, "os 9 Locais do Motor possuem representação 2D");
+
+        var areaTestePosto = CriaArea(Mundo.LocalPorID(Mundo.LOCAL_ID_POSTO_DE_GUARDA));
+        Verificar(areaTestePosto is AreaPosto, "Posto de Guarda tem representação 2D válida (AreaPosto)");
+        areaTestePosto?.Free();
+        var areaTesteFazenda = CriaArea(Mundo.LocalPorID(Mundo.LOCAL_ID_CASA_DA_FAZENDA));
+        Verificar(areaTesteFazenda is AreaFazenda, "Casa de Fazenda tem representação 2D válida (AreaFazenda)");
+        areaTesteFazenda?.Free();
+        var areaTesteCamponeses = CriaArea(Mundo.LocalPorID(Mundo.LOCAL_ID_AREA_DOS_CAMPONESES));
+        Verificar(areaTesteCamponeses is AreaCamponeses, "Area dos Camponeses tem representação 2D válida (AreaCamponeses)");
+        areaTesteCamponeses?.Free();
+        var areaTestePonte = CriaArea(Mundo.LocalPorID(Mundo.LOCAL_ID_PONTE));
+        Verificar(areaTestePonte is AreaPonte, "Ponte tem representação 2D válida (AreaPonte)");
+        areaTestePonte?.Free();
+        var areaTesteFloresta = CriaArea(Mundo.LocalPorID(Mundo.LOCAL_ID_CAMPO_DAS_ARANHAS));
+        Verificar(areaTesteFloresta is AreaFloresta, "Floresta tem representação 2D válida (AreaFloresta)");
+        areaTesteFloresta?.Free();
+
+        // O jogador está na Praça (fim da Fase 9). O gate do Posto é do Motor:
+        // sem o Passe, usar a saída não faz nada (o jogador fica na Praça) e a
+        // mensagem vem do Motor
+        var passe = jogador.Inventario.First(ii => ii.Detalhes.ID == Mundo.ITEM_ID_PASSE_AVENTUREIRO);
+        passe.Quantidade = 0;
+
+        SaidaLocal saidaPraçaPosto = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_POSTO_DE_GUARDA);
+        _areaAtiva.Jogador.Position = saidaPraçaPosto.Position;
+        await Frames(10);
+        Verificar(saidaPraçaPosto.NaProximidade, "saída do Posto da Praça detecta o jogador");
+        string textoAntesGate = _mensagens.Texto;
+        saidaPraçaPosto.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_PRACA, "Posto: sem o Passe o Motor bloqueia (fica na Praça)");
+        Verificar(_areaAtiva is AreaPraca, "Posto bloqueado: a representação visual permanece na Praça");
+        Verificar(_mensagens.Texto.Length > textoAntesGate.Length
+                && _mensagens.Texto.Substring(textoAntesGate.Length).Contains("Passe de Aventureiro"),
+            "mensagem de gate do Posto vem do Motor");
+
+        passe.Quantidade = 1;
+        saidaPraçaPosto.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_POSTO_DE_GUARDA, "Posto: com o Passe o Motor libera a entrada");
+        Verificar(_areaAtiva is AreaPosto, "representação visual troca para o Posto");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 100f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 200f) < 1f,
+            "spawn contextual: jogador entra no Posto pela porta oeste");
+
+        // Posto -> Ponte (saída leste do Posto)
+        SaidaLocal saidaPostoPonte = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_PONTE);
+        _areaAtiva.Jogador.Position = saidaPostoPonte.Position;
+        await Frames(10);
+        Verificar(saidaPostoPonte.NaProximidade, "saída da Ponte do Posto detecta o jogador");
+        saidaPostoPonte.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_PONTE, "E no Posto leva o jogador à Ponte (Motor)");
+        Verificar(_areaAtiva is AreaPonte, "representação visual troca para a Ponte");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 100f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 150f) < 1f,
+            "spawn contextual: jogador entra na Ponte pela extremidade oeste");
+
+        // Ponte -> Floresta (saída leste da Ponte)
+        SaidaLocal saidaPonteFloresta = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_CAMPO_DAS_ARANHAS);
+        _areaAtiva.Jogador.Position = saidaPonteFloresta.Position;
+        await Frames(10);
+        Verificar(saidaPonteFloresta.NaProximidade, "saída da Floresta da Ponte detecta o jogador");
+        saidaPonteFloresta.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CAMPO_DAS_ARANHAS, "E na Ponte leva o jogador à Floresta (Motor)");
+        Verificar(_areaAtiva is AreaFloresta, "representação visual troca para a Floresta");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 100f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 300f) < 1f,
+            "spawn contextual: jogador entra na Floresta pela porta oeste");
+
+        // A Aranha da Floresta: o Motor a recria na entrada; a apresentação a exibe
+        Verificar(_partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_ARANHA_GIGANTE,
+            "MonstroAtual do Motor = Aranha da Floresta");
+        Verificar(_areaAtiva.Inimigo is Inimigo2D, "Aranha aparece na Floresta (representação visual Inimigo2D)");
+
+        // Floresta -> Ponte (saída oeste da Floresta)
+        SaidaLocal saidaFlorestaPonte = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_PONTE);
+        _areaAtiva.Jogador.Position = saidaFlorestaPonte.Position;
+        await Frames(10);
+        Verificar(saidaFlorestaPonte.NaProximidade, "saída da Ponte da Floresta detecta o jogador");
+        saidaFlorestaPonte.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_PONTE, "E na Floresta leva o jogador de volta à Ponte (Motor)");
+        Verificar(_areaAtiva is AreaPonte, "representação visual volta para a Ponte");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 700f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 150f) < 1f,
+            "spawn contextual: jogador entra na Ponte pela extremidade leste");
+
+        // Ponte -> Posto (saída oeste da Ponte)
+        SaidaLocal saidaPontePosto = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_POSTO_DE_GUARDA);
+        _areaAtiva.Jogador.Position = saidaPontePosto.Position;
+        await Frames(10);
+        Verificar(saidaPontePosto.NaProximidade, "saída do Posto da Ponte detecta o jogador");
+        saidaPontePosto.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_POSTO_DE_GUARDA, "E na Ponte leva o jogador de volta ao Posto (Motor)");
+        Verificar(_areaAtiva is AreaPosto, "representação visual volta para o Posto");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 500f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 200f) < 1f,
+            "spawn contextual: jogador entra no Posto pela porta leste");
+
+        // Posto -> Praça (saída oeste do Posto)
+        SaidaLocal saidaPostoPraça = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_PRACA);
+        _areaAtiva.Jogador.Position = saidaPostoPraça.Position;
+        await Frames(10);
+        Verificar(saidaPostoPraça.NaProximidade, "saída da Praça do Posto detecta o jogador");
+        saidaPostoPraça.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_PRACA, "E no Posto leva o jogador de volta à Praça (Motor)");
+        Verificar(_areaAtiva is AreaPraca, "representação visual volta para a Praça");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 700f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 400f) < 1f,
+            "spawn contextual: jogador entra na Praça pela porta leste");
+
+        // Praça -> Casa de Fazenda (saída oeste da Praça)
+        SaidaLocal saidaPraçaFazenda = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_CASA_DA_FAZENDA);
+        _areaAtiva.Jogador.Position = saidaPraçaFazenda.Position;
+        await Frames(10);
+        Verificar(saidaPraçaFazenda.NaProximidade, "saída da Fazenda da Praça detecta o jogador");
+        saidaPraçaFazenda.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CASA_DA_FAZENDA, "E na Praça leva o jogador à Casa de Fazenda (Motor)");
+        Verificar(_areaAtiva is AreaFazenda, "representação visual troca para a Fazenda");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 500f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 200f) < 1f,
+            "spawn contextual: jogador entra na Fazenda pela porta leste");
+
+        var questCamponeses = Mundo.QuestPorID(Mundo.QUEST_ID_LIMPAR_AREA_DOS_CAMPONESES);
+        Verificar(_partida.Jogador.TemEstaQuest(questCamponeses) && !_partida.Jogador.QuestEstaCompletada(questCamponeses),
+            "quest 'Limpar a area dos camponeses' recebida ao entrar na Fazenda (Motor)");
+
+        // Fazenda -> Area dos Camponeses (saída oeste da Fazenda)
+        SaidaLocal saidaFazendaCamponeses = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_AREA_DOS_CAMPONESES);
+        _areaAtiva.Jogador.Position = saidaFazendaCamponeses.Position;
+        await Frames(10);
+        Verificar(saidaFazendaCamponeses.NaProximidade, "saída dos Camponeses da Fazenda detecta o jogador");
+        saidaFazendaCamponeses.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_AREA_DOS_CAMPONESES, "E na Fazenda leva o jogador à Area dos Camponeses (Motor)");
+        Verificar(_areaAtiva is AreaCamponeses, "representação visual troca para a Area dos Camponeses");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 700f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 300f) < 1f,
+            "spawn contextual: jogador entra na Area pela porta leste");
+
+        // A Cobra da Area: o Motor a recria na entrada; a apresentação a exibe
+        Verificar(_partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_COBRA,
+            "MonstroAtual do Motor = Cobra da Area dos Camponeses");
+        Verificar(_areaAtiva.Inimigo is Inimigo2D, "Cobra aparece na Area dos Camponeses (representação visual Inimigo2D)");
+
+        // Area dos Camponeses -> Fazenda (saída leste da Area)
+        SaidaLocal saidaCamponesesFazenda = _areaAtiva.Saidas.First(s => s.Destino.ID == Mundo.LOCAL_ID_CASA_DA_FAZENDA);
+        _areaAtiva.Jogador.Position = saidaCamponesesFazenda.Position;
+        await Frames(10);
+        Verificar(saidaCamponesesFazenda.NaProximidade, "saída da Fazenda da Area detecta o jogador");
+        saidaCamponesesFazenda.Interagir();
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CASA_DA_FAZENDA, "E na Area leva o jogador de volta à Fazenda (Motor)");
+        Verificar(_areaAtiva is AreaFazenda, "representação visual volta para a Fazenda");
+        Verificar(Mathf.Abs(_areaAtiva.Jogador.Position.X - 100f) < 1f
+                && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 200f) < 1f,
+            "spawn contextual: jogador entra na Fazenda pela porta oeste");
 
         GD.Print(falhas == 0 ? "[AutoTeste] TODOS OS CHECKS OK" : $"[AutoTeste] {falhas} CHECK(S) FALHARAM");
     }
