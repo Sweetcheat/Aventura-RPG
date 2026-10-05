@@ -7,6 +7,9 @@
 bin/
 obj/
 
+# Godot
+.godot/
+
 # Visual Studio migration leftovers
 UpgradeLog.htm
 

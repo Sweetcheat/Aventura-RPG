@@ -118,7 +118,7 @@ namespace Motor
         {
             // Cria cada local
             var casa              = new Local(LOCAL_ID_CASA,                   "Casa",                  "Esta é a sua casa.",                                                  null,                              null,                                         null);
-            var praca             = new Local(LOCAL_ID_PRACA,                  "Praça",                 "Você vê uma fonte grande.",                                           null,                              null,                                         null);
+            var praca             = new Local(LOCAL_ID_PRACA,                  "Praça",                 "Você vê uma fonte grande.",                                           null,                              null,                                         MonstroPorID(MONSTRO_ID_RATO));
             var cabanaAlquimistas = new Local(LOCAL_ID_CABANA_DOS_ALQUIMISTAS, "Cabana dos Alquimistas","Há várias plantas esquisitas nas prateleiras.",                       null,                              QuestPorID(QUEST_ID_LIMPAR_JARDIM_DOS_ALQUIMISTAS), null);
             var jardimAlquimistas = new Local(LOCAL_ID_JARDIM_DOS_ALQUIMISTAS, "Jardim dos Alquimistas","Várias plantas estão crescendo aqui.",                                null,                              null,                                         MonstroPorID(MONSTRO_ID_RATO));
             var casaFazenda       = new Local(LOCAL_ID_CASA_DA_FAZENDA,        "Casa de Fazenda",       "Há uma pequena casa de fazenda aqui, com um fazendeiro na frente.",   null,                              QuestPorID(QUEST_ID_LIMPAR_AREA_DOS_CAMPONESES),    null);
