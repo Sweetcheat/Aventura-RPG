@@ -216,21 +216,36 @@ namespace Motor
 
             // Monstro ainda vivo: contra-ataca (10% de chance de falha)
             if (MonstroAtual != null)
+                mensagens.AddRange(AtaqueDoMonstro());
+
+            return mensagens;
+        }
+
+        /*  Ataque do monstro contra o jogador (10% de falha, dano 0..DanoMaximo).
+            Usado pelo contra-ataque do combate por turnos (Atacar) e pelo
+            combate espacial (quando a apresentação avisa que o inimigo está em
+            posição de atacar). Se o jogador morre, a regra de morte é aplicada
+            (Casa, ouro, respawn). Sem monstro em combate, não faz nada. */
+        public List<string> AtaqueDoMonstro()
+        {
+            var mensagens = new List<string>();
+
+            if (MonstroAtual == null)
+                return mensagens;
+
+            bool monstroFalhou = GeradorNumeroAleatorio.NumeroEntre(1, 100) <= CHANCE_EVENTO_COMBATE;
+            int danoAoJogador = monstroFalhou ? 0 : GeradorNumeroAleatorio.NumeroEntre(0, MonstroAtual.DanoMaximo);
+
+            if (monstroFalhou)
+                mensagens.Add($"O(A) {MonstroAtual.Nome} errou o ataque.{Environment.NewLine}");
+            else
+                mensagens.Add($"O(A) {MonstroAtual.Nome} causou a você {danoAoJogador} pontos de dano.{Environment.NewLine}");
+
+            Jogador.VidaAtual -= danoAoJogador;
+
+            if (Jogador.VidaAtual <= 0)
             {
-                bool monstroFalhou = GeradorNumeroAleatorio.NumeroEntre(1, 100) <= CHANCE_EVENTO_COMBATE;
-                int danoAoJogador = monstroFalhou ? 0 : GeradorNumeroAleatorio.NumeroEntre(0, MonstroAtual.DanoMaximo);
-
-                if (monstroFalhou)
-                    mensagens.Add($"O(A) {MonstroAtual.Nome} errou o ataque.{Environment.NewLine}");
-                else
-                    mensagens.Add($"O(A) {MonstroAtual.Nome} causou a você {danoAoJogador} pontos de dano.{Environment.NewLine}");
-
-                Jogador.VidaAtual -= danoAoJogador;
-
-                if (Jogador.VidaAtual <= 0)
-                {
-                    MorreuNaMaoDo(MonstroAtual, mensagens);
-                }
+                MorreuNaMaoDo(MonstroAtual, mensagens);
             }
 
             return mensagens;

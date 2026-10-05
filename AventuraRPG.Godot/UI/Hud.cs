@@ -38,6 +38,9 @@ public partial class Hud : PanelContainer
 	// Texto do rótulo de Local (usado apenas pela validação automática em modo headless)
 	public string TextoLocal => _labelLocal != null ? _labelLocal.Text : "";
 
+	// Texto do rótulo de vida (usado apenas pela validação automática em modo headless)
+	public string TextoVida => _labelVida != null ? _labelVida.Text : "";
+
 	public void Atualizar(Jogador jogador)
 	{
 		_labelLocal.Text       = $"Local: {jogador.LocalAtual.Nome}";

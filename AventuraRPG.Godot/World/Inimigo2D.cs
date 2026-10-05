@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using Motor;
 
@@ -5,8 +6,10 @@ using Motor;
    do Motor (corpo, nome e barra de HP) que persegue o jogador.
    Não detém estado RPG próprio: a barra é relida do Monstro (a mesma
    instância que o Motor altera).
-   Toda a lógica espacial (percepção, perseguição, colisão) é do Godot:
-   o Motor não conhece posição, velocidade nem física. */
+   Toda a lógica espacial (percepção, perseguição, ataque, colisão) é do
+   Godot: o Motor não conhece posição, velocidade nem física. O inimigo
+   apenas sinaliza (AtaqueSolicitado) que está em posição de atacar; as
+   regras de dano/morte/respawn são aplicadas pelo Motor. */
 public partial class Inimigo2D : CharacterBody2D
 {
     // Perseguição (apenas apresentação): percebe o jogador dentro de
@@ -15,9 +18,19 @@ public partial class Inimigo2D : CharacterBody2D
     public const float Percepcao = 150f;
     public const float DistanciaParada = 30f;
     public const float Velocidade = 80f;
+    // Dentro desta distância o inimigo está em posição de atacar (o mesmo
+    // alcance do ataque do jogador no Jogo); a cadência (AtaqueCooldown)
+    // é apenas apresentação — o dano é todo do Motor.
+    public const float DistanciaAtaque = 50f;
+    public const double AtaqueCooldown = 1.0; // segundos entre ataques
+
+    // O Jogo assina para aplicar as regras (Partida.AtaqueDoMonstro); o
+    // inimigo não conhece dano, morte, ouro nem respawn
+    public event Action AtaqueSolicitado;
 
     private readonly Monstro _monstro;
     private readonly Jogador2D _jogador;
+    private double _tempoSemAtaque;
 
     private ColorRect _barraFundo;
     private ColorRect _barraVida;
@@ -83,6 +96,23 @@ public partial class Inimigo2D : CharacterBody2D
             Velocity = (_jogador.Position - Position).Normalized() * Velocidade;
 
         MoveAndSlide();
+
+        // Ataque espacial: dentro do alcance, a cada AtaqueCooldown o inimigo
+        // sinaliza que está em posição de atacar (o Jogo pergunta ao Motor).
+        // Sair da percepção (o jogador fugiu) zera o cooldown.
+        if (distancia > Percepcao)
+        {
+            _tempoSemAtaque = 0;
+        }
+        else if (distancia <= DistanciaAtaque)
+        {
+            _tempoSemAtaque += delta;
+            if (_tempoSemAtaque >= AtaqueCooldown)
+            {
+                _tempoSemAtaque = 0;
+                AtaqueSolicitado?.Invoke();
+            }
+        }
     }
 
     // A barra reflete o estado real do Motor (Monstro.VidaAtual)

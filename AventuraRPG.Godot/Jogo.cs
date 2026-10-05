@@ -139,6 +139,29 @@ public partial class Jogo : Node2D
 
         foreach (var saida in nova.Saidas)
             saida.SaidaUsada += MoverPara;
+
+        // O inimigo da área sinaliza quando está em posição de atacar;
+        // as regras (dano, morte, respawn) são todas do Motor
+        nova.InimigoAtacou += AoInimigoAtacou;
+    }
+
+    // O inimigo (apresentação) sinalizou que está em posição de atacar.
+    // O Godot não aplica dano: o Motor (Partida.AtaqueDoMonstro) decide
+    // dano, morte, ouro e respawn, e a interface apresenta o resultado.
+    // Se a morte trocou o Local, a atualização é adiada: o sinal sai do
+    // _PhysicsProcess do inimigo, e liberar a área no meio do próprio
+    // callback dele seria inseguro.
+    private void AoInimigoAtacou()
+    {
+        int localAntes = _partida.Jogador.LocalAtual.ID;
+
+        foreach (var mensagem in _partida.AtaqueDoMonstro())
+            _mensagens.AdicionaMensagem(mensagem);
+
+        if (_partida.Jogador.LocalAtual.ID != localAntes)
+            CallDeferred(nameof(AtualizaInterface));
+        else
+            AtualizaInterface();
     }
 
     // Painéis abertos por tecla, via Input Map (project.godot:
@@ -472,7 +495,9 @@ public partial class Jogo : Node2D
         Verificar(_areaAtiva.Inimigo == null, "representação visual do inimigo é removida");
         Verificar(jogador.PontosExperiencia == 3 && jogador.Ouro == 10, "XP (3) e ouro (10) da morte creditados pelo Motor");
         Verificar(jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_PELO_DE_RATO && ii.Quantidade > 0), "loot da morte vai para o inventário (garantia do item comum)");
-        Verificar(jogador.VidaAtual == 15, "inimigo estático não ataca (vida do jogador intacta)");
+        // O Rato ataca durante a perseguição acima (Fase 11): o dano é do
+        // Motor e o jogador sobrevive (HP 15 - dano máximo 5 > 0)
+        Verificar(jogador.VidaAtual <= 15 && jogador.VidaAtual > 0, "Rato ataca durante a perseguição (dano do Motor) e o jogador sobrevive");
 
         // Volta: Praça -> Casa pela saída da Praça
         var saidaPraca = _areaAtiva.Saidas[0];
@@ -798,7 +823,115 @@ public partial class Jogo : Node2D
                 && Mathf.Abs(_areaAtiva.Jogador.Position.Y - 200f) < 1f,
             "spawn contextual: jogador entra na Fazenda pela porta oeste");
 
+        // ---- Fase 11: ataque espacial do inimigo (cooldown) e morte do
+        // jogador (as regras de dano/morte/respawn são todas do Motor) ----
+
+        MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_PRACA));
+        await Frames(3);
+        Verificar(_areaAtiva is AreaPraca, "F11: área visual = Praça");
+        Verificar(_areaAtiva.Inimigo != null && _partida.MonstroAtual != null && _partida.MonstroAtual.ID == Mundo.MONSTRO_ID_RATO,
+            "F11: Rato recriado ao voltar à Praça (Motor)");
+
+        var inimigoF11 = _areaAtiva.Inimigo;
+        var jogadorF11 = _areaAtiva.Jogador;
+
+        // Manipulação de teste: dano observável e HP alto para a amostra
+        _partida.MonstroAtual.DanoMaximo = 10;
+        _partida.Jogador.VidaAtual = 200;
+
+        // O Rato detecta o jogador e o persegue até o alcance de ataque
+        jogadorF11.Position = inimigoF11.Position + new Vector2(-200f, 0f);
+        await Frames(30);
+        Vector2 ratoParadoF11 = inimigoF11.Position;
+        await Frames(30);
+        Verificar(inimigoF11.Position == ratoParadoF11, "F11: fora da percepção o Rato permanece parado");
+
+        int hpAntesF11 = _partida.Jogador.VidaAtual;
+        jogadorF11.Position = inimigoF11.Position + new Vector2(-100f, 0f);
+        await Frames(120);
+        Verificar(jogadorF11.Position.DistanceTo(inimigoF11.Position) < Inimigo2D.DistanciaAtaque,
+            "F11: Rato persegue o jogador até o alcance de ataque");
+
+        // O Rato ataca a cada cooldown (1s); o dano é aplicado pelo Motor
+        int ciclosDano = 0;
+        while (_partida.Jogador.VidaAtual == hpAntesF11 && ciclosDano < 10)
+        {
+            await Frames(60); // 1 ciclo de cooldown
+            ciclosDano++;
+        }
+        Verificar(_partida.Jogador.VidaAtual < hpAntesF11, "F11: Rato causa dano no jogador (Motor aplica)");
+        Verificar(_hud.TextoVida.Contains($"HP: {_partida.Jogador.VidaAtual}/"), "F11: HUD reflete o HP após o dano");
+        Verificar(_mensagens.Texto.Contains("causou a você") || _mensagens.Texto.Contains("errou o ataque"),
+            "F11: mensagem do ataque do Rato vem do Motor");
+
+        // Cooldown: em 0,5s (metade do intervalo) não há novo ataque
+        int hpPósAtaque = _partida.Jogador.VidaAtual;
+        await Frames(30);
+        Verificar(_partida.Jogador.VidaAtual == hpPósAtaque, "F11: cooldown impede ataque a cada frame");
+
+        // Fuga: o jogador sai da percepção e o Rato interrompe a perseguição
+        jogadorF11.Position = inimigoF11.Position + new Vector2(-300f, 0f);
+        await Frames(30);
+        Vector2 ratoFugiu = inimigoF11.Position;
+        int hpFuga = _partida.Jogador.VidaAtual;
+        await Frames(120);
+        Verificar(inimigoF11.Position == ratoFugiu, "F11: fugindo (fora da percepção) o Rato para de perseguir");
+        Verificar(_partida.Jogador.VidaAtual == hpFuga, "F11: fugindo, o jogador não recebe dano");
+
+        // Re-engajamento: o Rato persegue de novo
+        jogadorF11.Position = inimigoF11.Position + new Vector2(-100f, 0f);
+        await Frames(120);
+        Verificar(jogadorF11.Position.DistanceTo(inimigoF11.Position) < Inimigo2D.DistanciaAtaque,
+            "F11: o Rato volta a perseguir quando o jogador se aproxima");
+
+        // Morte: HP 1 => o próximo acerto mata; o Motor aplica a regra
+        // existente (Casa, 25% do ouro, respawn com vida cheia)
+        _partida.Jogador.VidaAtual = 1;
+        _partida.Jogador.Ouro = 100;
+        int ciclosMorte = 0;
+        while (_partida.Jogador.LocalAtual.ID != Mundo.LOCAL_ID_CASA && ciclosMorte < 20)
+        {
+            await Frames(60);
+            ciclosMorte++;
+        }
+        await Frames(3);
+        Verificar(_partida.Jogador.LocalAtual.ID == Mundo.LOCAL_ID_CASA, "F11: morte => o Motor teletransporta para a Casa");
+        Verificar(_partida.MonstroAtual == null, "F11: monstro limpo após a morte");
+        Verificar(_partida.Jogador.VidaAtual == _partida.Jogador.VidaMaximaEfetiva, "F11: respawn com vida cheia");
+        Verificar(_partida.Jogador.Ouro == 75, "F11: morte perde 25% do ouro (100 -> 75)");
+        Verificar(_areaAtiva is AreaCasa, "F11: representação visual volta para a Casa");
+        Verificar(_areaAtiva.Jogador != null && _areaAtiva.Jogador.Position.IsFinite(), "F11: jogador aparece no spawn da Casa");
+        Verificar(_hud.TextoLocal.Contains("Casa"), "F11: HUD reflete a Casa após a morte");
+        Verificar(_hud.TextoVida.Contains($"HP: {_partida.Jogador.VidaMaximaEfetiva}/"), "F11: HUD mostra HP cheio após o respawn");
+        Verificar(_mensagens.Texto.Contains("matou você"), "F11: mensagem de morte vem do Motor");
+        Verificar(_mensagens.Texto.Contains("perdeu 25 de ouro"), "F11: mensagem da perda de ouro vem do Motor");
+
+        // O combate do jogador continua funcionando após a morte (Rato da Praça)
+        MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_PRACA));
+        await Frames(3);
+        Verificar(_areaAtiva is AreaPraca && _areaAtiva.Inimigo != null, "F11: Rato recriado na Praça após o respawn");
+        _partida.MonstroAtual.VidaAtual = 1;
+        _partida.MonstroAtual.LootTable.Clear();
+        _partida.MonstroAtual.LootTable.Add(new ItemLoot(Mundo.ItemPorID(Mundo.ITEM_ID_PELO_DE_RATO), 100, true));
+        int xpAntesF11 = _partida.Jogador.PontosExperiencia;
+        int ouroAntesF11 = _partida.Jogador.Ouro;
+        _areaAtiva.Jogador.Position = _areaAtiva.Inimigo.Position + new Vector2(-40f, 0f);
+        await Frames(3);
+        AtacarInimigo();
+        Verificar(_partida.MonstroAtual == null, "F11: Rato morre pelo ataque do jogador (combate da Fase 9 intacto)");
+        Verificar(_partida.Jogador.PontosExperiencia == xpAntesF11 + 3 && _partida.Jogador.Ouro == ouroAntesF11 + 10,
+            "F11: XP (3) e ouro (10) da morte creditados pelo Motor");
+        Verificar(_partida.Jogador.Inventario.Any(ii => ii.Detalhes.ID == Mundo.ITEM_ID_PELO_DE_RATO && ii.Quantidade > 0),
+            "F11: loot do Rato vai para o inventário");
+
+        // O mapa continua funcionando após o respawn
+        MoverPara(Mundo.LocalPorID(Mundo.LOCAL_ID_CABANA_DOS_ALQUIMISTAS));
+        Verificar(_areaAtiva is AreaCabana, "F11: mapa continua funcionando (Praça -> Cabana)");
+
         GD.Print(falhas == 0 ? "[AutoTeste] TODOS OS CHECKS OK" : $"[AutoTeste] {falhas} CHECK(S) FALHARAM");
+
+        // Em modo headless o processo encerra com o código dos checks
+        GetTree().Quit(falhas == 0 ? 0 : 1);
     }
 
     private static bool ConteemTecla(string acao, Key tecla)

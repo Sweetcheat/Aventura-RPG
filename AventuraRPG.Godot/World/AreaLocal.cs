@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using Motor;
@@ -19,6 +20,9 @@ public abstract partial class AreaLocal : Node2D
     // O inimigo (apresentação) desta área: a representação visual do
     // Partida.MonstroAtual, quando o Local tem um monstro vivo
     public Inimigo2D Inimigo { get; private set; }
+    // Repassa o sinal do inimigo (estava em posição de atacar) para o Jogo,
+    // que pergunta ao Motor as regras de dano/morte
+    public event Action InimigoAtacou;
 
     protected AreaLocal(Local local)
     {
@@ -86,6 +90,7 @@ public abstract partial class AreaLocal : Node2D
                 return; // esta área não tem ponto para o inimigo
 
             Inimigo = new Inimigo2D(monstro, Jogador) { Position = posicao.Value };
+            Inimigo.AtaqueSolicitado += () => InimigoAtacou?.Invoke();
             AddChild(Inimigo);
         }
 
